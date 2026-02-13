@@ -1,9 +1,12 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// Define the Request schema
 const RequestSchema = new Schema({
-  // User details
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+
   user: {
     name: {
       type: String,
@@ -11,16 +14,16 @@ const RequestSchema = new Schema({
     },
     email: {
       type: String,
-      required: [true, 'Email is required'],
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email']
+      trim: true,
+      lowercase: true,
+      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+$/, 'Please add a valid email']
     },
     phone: {
       type: String,
       required: [true, 'Phone number is required']
     }
   },
-  
-  // Location information
+
   location: {
     coordinates: {
       type: {
@@ -30,53 +33,45 @@ const RequestSchema = new Schema({
       },
       coordinates: {
         type: [Number],
-        required: true,
-        index: '2dsphere'
+        validate: {
+          validator: function (coords) {
+            if (!coords) return true;
+            return Array.isArray(coords) && coords.length === 2;
+          },
+          message: 'Coordinates must be [longitude, latitude]'
+        }
       }
     },
     address: {
       type: String,
-      required: [true, 'Address is required']
+      required: [true, 'Address is required'],
+      trim: true
     }
   },
-  
-  // Request status
+
   status: {
     type: String,
     enum: ['pending', 'in-progress', 'completed', 'cancelled'],
     default: 'pending'
   },
-  
-  // Timestamps
-  createdAt: {
-    type: Date,
-    default: Date.now
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now
-  },
-  completedAt: {
-    type: Date
-  },
-  
-  // Additional information
+
   notes: {
     type: String,
     trim: true
   },
-  
-  // Assignment
+
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  },
+
+  completedAt: {
+    type: Date
   }
 }, {
-  timestamps: true // This will use createdAt and updatedAt automatically
+  timestamps: true
 });
 
-// Create index for location search
-RequestSchema.index({ 'location.coordinates': '2dsphere' });
+RequestSchema.index({ 'location.coordinates': '2dsphere' }, { sparse: true });
 
 module.exports = mongoose.model('Request', RequestSchema);
-

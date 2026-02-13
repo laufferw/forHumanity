@@ -16,6 +16,9 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
+      // Support backend auth middleware expecting x-auth-token.
+      // Keep Authorization for future compatibility.
+      config.headers['x-auth-token'] = token;
       config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
