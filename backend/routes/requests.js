@@ -153,7 +153,10 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     if (phone) request.user.phone = phone;
     if (location || address) request.location = normalizeLocation({ location, address });
     if (notes !== undefined) request.notes = notes;
-    if (status) request.status = status;
+    if (status) {
+      request.status = status;
+      request.completedAt = status === 'completed' ? new Date() : undefined;
+    }
     if (assignedTo) request.assignedTo = assignedTo;
 
     await request.save();
@@ -191,6 +194,7 @@ router.put('/:id/status', auth, async (req, res) => {
     }
 
     request.status = status;
+    request.completedAt = status === 'completed' ? new Date() : undefined;
     await request.save();
 
     return res.json(request);
