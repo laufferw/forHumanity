@@ -2,7 +2,7 @@ import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import './App.css';
 import { useAuth } from './context/AuthContext';
-import { requestService } from './services/api';
+import { adminService, requestService } from './services/api';
 
 function App() {
   return (
@@ -13,8 +13,10 @@ function App() {
 }
 
 function Shell() {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, getUserRole } = useAuth();
   const authed = isAuthenticated();
+  const role = getUserRole();
+  const isAdmin = role === 'admin';
 
   return (
     <div className="app-shell">
@@ -24,6 +26,7 @@ function Shell() {
           <Link to="/">Home</Link>
           <Link to="/request">Request Help</Link>
           {authed ? <Link to="/my-requests">My Requests</Link> : <Link to="/login">Login</Link>}
+          {authed && isAdmin && <Link to="/admin">Admin</Link>}
         </nav>
         {authed && (
           <button className="secondary" onClick={logout}>
@@ -40,6 +43,10 @@ function Shell() {
           <Route
             path="/my-requests"
             element={authed ? <MyRequestsPage /> : <Navigate to="/login" replace />}
+          />
+          <Route
+            path="/admin"
+            element={authed && isAdmin ? <AdminPage /> : <Navigate to="/login" replace />}
           />
         </Routes>
       </main>
@@ -79,7 +86,7 @@ function AuthPage() {
         await register(form);
         setMessage('Registered and logged in successfully.');
       }
-    } catch (err) {
+    } catch {
       // surfaced by context
     }
   };
@@ -234,6 +241,78 @@ function MyRequestsPage() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function AdminPage() {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [users, setUsers] = useState([]);
+  const [requests, setRequests] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const [allUsers, allRequests] = await Promise.all([
+          adminService.getAllUsers(),
+          requestService.getAllRequests()
+        ]);
+
+        if (!cancelled) {
+          setUsers(Array.isArray(allUsers) ? allUsers : []);
+          setRequests(Array.isArray(allRequests) ? allRequests : []);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err?.message || 'Failed to load admin data.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const pendingCount = requests.filter((r) => r.status === 'pending').length;
+
+  return (
+    <section className="card">
+      <h2>Admin dashboard</h2>
+      {loading && <p>Loading dashboard...</p>}
+      {error && <p className="error">{error}</p>}
+      {!loading && !error && (
+        <>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <h3>{users.length}</h3>
+              <p>Users</p>
+            </div>
+            <div className="stat-card">
+              <h3>{requests.length}</h3>
+              <p>Total requests</p>
+            </div>
+            <div className="stat-card">
+              <h3>{pendingCount}</h3>
+              <p>Pending requests</p>
+            </div>
+          </div>
+          <h3>Recent requests</h3>
+          <ul className="list">
+            {requests.slice(0, 8).map((r) => (
+              <li key={r._id || `${r.createdAt}-${r.user?.name}`}>
+                <strong>{r.status}</strong> — {r.user?.name || 'Unknown'} — {r.location?.address || 'No address'}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

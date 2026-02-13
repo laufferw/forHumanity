@@ -95,3 +95,27 @@ button.secondary {
 .list {
   padding-left: 18px;
 }
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.stat-card {
+  border: 1px solid #e6eaf2;
+  border-radius: 10px;
+  padding: 10px;
+  background: #f9fbff;
+}
+
+.stat-card h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.stat-card p {
+  margin: 4px 0 0;
+  color: #5a6475;
+}
