@@ -290,7 +290,7 @@ router.delete('/:id', auth, adminAuth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    await user.remove();
+    await User.findByIdAndDelete(req.params.id);
     res.json({ message: 'User removed successfully' });
   } catch (err) {
     console.error(err.message);
