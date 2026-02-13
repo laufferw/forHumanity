@@ -144,7 +144,7 @@ const requestService = {
   // Assign request to volunteer (admin only)
   assignRequest: async (requestId, userId) => {
     try {
-      const response = await api.put(`/requests/${requestId}/assign`, { assignedTo: userId });
+      const response = await api.put(`/requests/${requestId}`, { assignedTo: userId });
       return response.data;
     } catch (error) {
       throw error.response?.data || { message: 'Server error' };
@@ -177,7 +177,7 @@ const adminService = {
   // Update user role (admin only)
   updateUserRole: async (userId, role) => {
     try {
-      const response = await api.put(`/users/${userId}/role`, { role });
+      const response = await api.put(`/users/${userId}`, { role });
       return response.data;
     } catch (error) {
       throw error.response?.data || { message: 'Server error' };
