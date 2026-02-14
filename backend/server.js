@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -12,6 +13,20 @@ const adminRoutes = require('./routes/admin');
 const app = express();
 const PORT = process.env.PORT || 5000;
 let isConnected = false;
+const processStartedAt = Date.now();
+
+const metrics = {
+  requestsTotal: 0,
+  requestsByStatus: {},
+  requestsByMethod: {},
+  requestsByRoute: {},
+  errorsTotal: 0,
+  errorsByCode: {},
+};
+
+function incrementMetric(bucket, key) {
+  bucket[key] = (bucket[key] || 0) + 1;
+}
 
 function validateRuntimeConfig() {
   if (process.env.NODE_ENV === 'production') {
@@ -45,6 +60,42 @@ app.use(
     credentials: true,
   })
 );
+
+app.use((req, res, next) => {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+
+  req.requestId = requestId;
+  res.setHeader('x-request-id', requestId);
+
+  res.on('finish', () => {
+    metrics.requestsTotal += 1;
+    incrementMetric(metrics.requestsByStatus, String(res.statusCode));
+    incrementMetric(metrics.requestsByMethod, req.method);
+    incrementMetric(metrics.requestsByRoute, req.path);
+
+    if (res.statusCode >= 500) {
+      metrics.errorsTotal += 1;
+      incrementMetric(metrics.errorsByCode, String(res.statusCode));
+    }
+
+    const durationMs = Date.now() - startedAt;
+    console.log(
+      JSON.stringify({
+        level: 'info',
+        type: 'request',
+        requestId,
+        method: req.method,
+        path: req.path,
+        statusCode: res.statusCode,
+        durationMs,
+      })
+    );
+  });
+
+  next();
+});
+
 app.use('/api', apiLimiter);
 
 async function connectDb() {
@@ -70,6 +121,25 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+app.get('/api/metrics', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'forHumanity-backend',
+    startedAt: new Date(processStartedAt).toISOString(),
+    uptimeSeconds: Math.floor((Date.now() - processStartedAt) / 1000),
+    requests: {
+      total: metrics.requestsTotal,
+      byStatus: metrics.requestsByStatus,
+      byMethod: metrics.requestsByMethod,
+      byRoute: metrics.requestsByRoute,
+    },
+    errors: {
+      total: metrics.errorsTotal,
+      byCode: metrics.errorsByCode,
+    },
+  });
+});
+
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Server is running correctly!' });
 });
@@ -83,13 +153,34 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.use((req, res) => {
-  res.status(404).json({ message: 'Route not found' });
+  res.status(404).json({ message: 'Route not found', requestId: req.requestId });
 });
 
 app.use((err, req, res, _next) => {
-  console.error(err.stack);
-  res.status(500).json({
+  const statusCode = Number(err.statusCode || err.status || 500);
+  const errorId = crypto.randomUUID();
+
+  metrics.errorsTotal += 1;
+  incrementMetric(metrics.errorsByCode, String(statusCode));
+
+  console.error(
+    JSON.stringify({
+      level: 'error',
+      type: 'unhandled_error',
+      errorId,
+      requestId: req.requestId,
+      path: req.path,
+      method: req.method,
+      statusCode,
+      message: err.message,
+      stack: err.stack,
+    })
+  );
+
+  res.status(statusCode).json({
     message: 'Something went wrong!',
+    errorId,
+    requestId: req.requestId,
     error: process.env.NODE_ENV === 'production' ? {} : err,
   });
 });

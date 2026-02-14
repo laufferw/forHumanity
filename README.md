@@ -73,6 +73,8 @@ Backend now includes:
 - API rate limiting (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`)
 - stricter production startup validation for `JWT_SECRET`
 - health endpoint: `GET /api/health`
+- metrics endpoint: `GET /api/metrics`
+- request and error correlation IDs (`x-request-id`, `errorId`)
 
 ## Staging deployment (Docker Compose)
 
@@ -101,6 +103,10 @@ docker compose -f docker-compose.staging.yml exec backend npm run seed:admin
 ```bash
 docker compose -f docker-compose.staging.yml down
 ```
+
+## Ops
+
+- Incident response guide: `ops/INCIDENT_RUNBOOK.md`
 
 ## Current app shell
 
