@@ -29,6 +29,7 @@ MockUser.find = User.find;
 MockUser.findByIdAndDelete = User.findByIdAndDelete;
 
 jest.mock('../models/User', () => MockUser);
+const bcrypt = require('bcrypt');
 jest.mock('bcrypt', () => ({ compare: jest.fn().mockResolvedValue(true) }));
 jest.mock('jsonwebtoken', () => ({ sign: jest.fn().mockReturnValue('token-123') }));
 
@@ -46,7 +47,7 @@ describe('users routes', () => {
     const res = await request(app).post('/api/users/register').send({
       name: 'William',
       email: 'william@test.com',
-      password: 'password123',
+      password: 'Password123!',
       phone: '555',
     });
 
@@ -61,10 +62,51 @@ describe('users routes', () => {
     const res = await request(app).post('/api/users/register').send({
       name: 'William',
       email: 'william@test.com',
-      password: 'password123',
+      password: 'Password123!',
     });
 
     expect(res.status).toBe(400);
+  });
+
+  test('rejects weak registration password', async () => {
+    User.findOne.mockResolvedValue(null);
+
+    const res = await request(app).post('/api/users/register').send({
+      name: 'William',
+      email: 'william@test.com',
+      password: 'weakpass',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Password must be at least 8 characters/i);
+  });
+
+  test('locks out after repeated failed logins', async () => {
+    User.findOne.mockResolvedValue({
+      id: 'u1',
+      email: 'william@test.com',
+      password: 'hashed',
+      role: 'volunteer',
+      status: 'active',
+      contactInfo: {},
+    });
+
+    bcrypt.compare.mockResolvedValue(false);
+
+    for (let i = 0; i < 5; i += 1) {
+      await request(app).post('/api/users/login').send({
+        email: 'william@test.com',
+        password: 'WrongPass123!',
+      });
+    }
+
+    const blocked = await request(app).post('/api/users/login').send({
+      email: 'william@test.com',
+      password: 'WrongPass123!',
+    });
+
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.message).toMatch(/Too many failed login attempts/i);
   });
 
   test('admin can update user role', async () => {

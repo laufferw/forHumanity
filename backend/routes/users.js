@@ -6,12 +6,40 @@ const User = require('../models/User');
 
 const auth = require('../middleware/auth');
 
+const MAX_FAILED_LOGIN_ATTEMPTS = Number(process.env.MAX_FAILED_LOGIN_ATTEMPTS || 5);
+const LOCKOUT_MINUTES = Number(process.env.LOGIN_LOCKOUT_MINUTES || 15);
+const TOKEN_TTL = process.env.AUTH_TOKEN_TTL || '1d';
+
+const loginAttempts = new Map();
+
 const adminAuth = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
     return next();
   }
   return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
 };
+
+const normalizeEmail = (email) =>
+  String(email || '')
+    .trim()
+    .toLowerCase();
+
+const isStrongPassword = (password) => {
+  if (!password || password.length < 8) return false;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  return hasUpper && hasLower && hasNumber && hasSpecial;
+};
+
+const getPasswordPolicyMessage = () =>
+  'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.';
+
+const issueToken = (user) =>
+  jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+    expiresIn: TOKEN_TTL,
+  });
 
 const serializeUser = (user) => ({
   id: user.id,
@@ -22,6 +50,41 @@ const serializeUser = (user) => ({
   status: user.status,
 });
 
+const getLockState = (email) => {
+  const key = normalizeEmail(email);
+  const record = loginAttempts.get(key);
+  if (!record) return { key, locked: false };
+
+  if (record.lockedUntil && record.lockedUntil > Date.now()) {
+    return { key, locked: true, retryMs: record.lockedUntil - Date.now() };
+  }
+
+  if (record.lockedUntil && record.lockedUntil <= Date.now()) {
+    loginAttempts.delete(key);
+  }
+
+  return { key, locked: false };
+};
+
+const registerFailedAttempt = (email) => {
+  const key = normalizeEmail(email);
+  const existing = loginAttempts.get(key) || { count: 0, lockedUntil: null };
+  const nextCount = existing.count + 1;
+
+  const updated = {
+    count: nextCount,
+    lockedUntil:
+      nextCount >= MAX_FAILED_LOGIN_ATTEMPTS ? Date.now() + LOCKOUT_MINUTES * 60 * 1000 : null,
+  };
+
+  loginAttempts.set(key, updated);
+  return updated;
+};
+
+const clearFailedAttempts = (email) => {
+  loginAttempts.delete(normalizeEmail(email));
+};
+
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
@@ -30,14 +93,20 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Please enter all required fields' });
     }
 
-    let user = await User.findOne({ email });
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ message: getPasswordPolicyMessage() });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+
+    let user = await User.findOne({ email: normalizedEmail });
     if (user) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
     user = new User({
       name,
-      email,
+      email: normalizedEmail,
       password,
       contactInfo: {
         phone,
@@ -48,9 +117,7 @@ router.post('/register', async (req, res) => {
 
     await user.save();
 
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    });
+    const token = issueToken(user);
 
     return res.status(201).json({
       token,
@@ -70,8 +137,18 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Please enter all fields' });
     }
 
-    const user = await User.findOne({ email });
+    const lockState = getLockState(email);
+    if (lockState.locked) {
+      return res.status(429).json({
+        message: 'Too many failed login attempts. Please try again later.',
+        retryMinutes: Math.ceil(lockState.retryMs / 60000),
+      });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const user = await User.findOne({ email: normalizedEmail });
     if (!user) {
+      registerFailedAttempt(normalizedEmail);
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
@@ -83,17 +160,38 @@ router.post('/login', async (req, res) => {
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      const state = registerFailedAttempt(normalizedEmail);
+      if (state.lockedUntil) {
+        return res.status(429).json({
+          message: 'Too many failed login attempts. Please try again later.',
+          retryMinutes: LOCKOUT_MINUTES,
+        });
+      }
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    });
+    clearFailedAttempts(normalizedEmail);
+    const token = issueToken(user);
 
     return res.json({
       token,
       user: serializeUser(user),
     });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ message: 'Server Error' });
+  }
+});
+
+router.post('/session/refresh', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({ message: 'Session is no longer valid.' });
+    }
+
+    const token = issueToken(user);
+    return res.json({ token, user: serializeUser(user) });
   } catch (err) {
     console.error(err.message);
     return res.status(500).json({ message: 'Server Error' });
@@ -123,12 +221,13 @@ router.put('/profile', auth, async (req, res) => {
     }
 
     if (name) user.name = name;
-    if (email && email !== user.email) {
-      const existingUser = await User.findOne({ email });
+    if (email && normalizeEmail(email) !== user.email) {
+      const normalizedEmail = normalizeEmail(email);
+      const existingUser = await User.findOne({ email: normalizedEmail });
       if (existingUser && existingUser.id !== user.id) {
         return res.status(400).json({ message: 'Email already in use' });
       }
-      user.email = email;
+      user.email = normalizedEmail;
     }
     if (phone !== undefined) {
       user.contactInfo = {
@@ -138,6 +237,10 @@ router.put('/profile', auth, async (req, res) => {
     }
 
     if (currentPassword && newPassword) {
+      if (!isStrongPassword(newPassword)) {
+        return res.status(400).json({ message: getPasswordPolicyMessage() });
+      }
+
       const isMatch = await bcrypt.compare(currentPassword, user.password);
       if (!isMatch) {
         return res.status(400).json({ message: 'Current password is incorrect' });
@@ -188,12 +291,13 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     }
 
     if (name) user.name = name;
-    if (email && email !== user.email) {
-      const existingUser = await User.findOne({ email });
+    if (email && normalizeEmail(email) !== user.email) {
+      const normalizedEmail = normalizeEmail(email);
+      const existingUser = await User.findOne({ email: normalizedEmail });
       if (existingUser && existingUser.id !== user.id) {
         return res.status(400).json({ message: 'Email already in use' });
       }
-      user.email = email;
+      user.email = normalizedEmail;
     }
     if (phone !== undefined) {
       user.contactInfo = {
