@@ -82,4 +82,23 @@ describe('requests routes', () => {
     expect(res.body.status).toBe('completed');
     expect(res.body.completedAt).toBeTruthy();
   });
+
+  test('preserves completedAt for idempotent completed status updates', async () => {
+    const originalCompletedAt = new Date('2026-01-01T00:00:00.000Z');
+    Request.findById.mockResolvedValue({
+      ...mockRequestDoc,
+      status: 'completed',
+      completedAt: originalCompletedAt,
+      save: jest.fn().mockResolvedValue(true)
+    });
+
+    const res = await request(app)
+      .put('/api/requests/req-1/status')
+      .set('x-test-role', 'admin')
+      .send({ status: 'completed' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('completed');
+    expect(new Date(res.body.completedAt).toISOString()).toBe(originalCompletedAt.toISOString());
+  });
 });
