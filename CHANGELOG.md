@@ -2,6 +2,15 @@
 
 All notable changes to forHumanity will be documented in this file.
 
+## [0.16.0] - 2026-02-14
+
+### Added
+- v1 launch package:
+  - production compose stack (`docker-compose.production.yml`)
+  - production env template (`.env.production.example`)
+  - reverse-proxy sample config (`deploy/nginx.reverse-proxy.example.conf`)
+  - launch-day checklist (`ops/LAUNCH_CHECKLIST.md`)
+
 ## [0.15.0] - 2026-02-14
 
 ### Added
