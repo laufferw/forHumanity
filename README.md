@@ -73,6 +73,9 @@ Then log in with that account and open `/admin`.
 Backend now includes:
 - `helmet` security headers
 - API rate limiting (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`)
+- login lockout controls (`MAX_FAILED_LOGIN_ATTEMPTS`, `LOGIN_LOCKOUT_MINUTES`)
+- configurable auth token TTL (`AUTH_TOKEN_TTL`)
+- stronger password policy (upper/lower/number/special)
 - stricter production startup validation for `JWT_SECRET`
 - health endpoint: `GET /api/health`
 - metrics endpoint: `GET /api/metrics`
