@@ -1,0 +1,50 @@
+name: Uptime Check
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+jobs:
+  uptime:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check required secret
+        run: |
+          if [ -z "${{ secrets.PRODUCTION_BASE_URL }}" ]; then
+            echo "PRODUCTION_BASE_URL secret is missing. Skipping.";
+            exit 0;
+          fi
+
+      - name: Health endpoint
+        run: |
+          STATUS=$(curl -sS -o /tmp/health.json -w "%{http_code}" "${{ secrets.PRODUCTION_BASE_URL }}/api/health")
+          echo "Health status: $STATUS"
+          test "$STATUS" = "200"
+
+      - name: Metrics endpoint
+        run: |
+          STATUS=$(curl -sS -o /tmp/metrics.json -w "%{http_code}" "${{ secrets.PRODUCTION_BASE_URL }}/api/metrics")
+          echo "Metrics status: $STATUS"
+          test "$STATUS" = "200"
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `🚨 Uptime check failed - ${new Date().toISOString()}`;
+            const body = [
+              'Automated uptime check failed.',
+              '',
+              `Workflow run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'Please investigate /api/health and /api/metrics in production.'
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['incident', 'ops']
+            });
