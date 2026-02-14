@@ -2,6 +2,14 @@
 
 All notable changes to forHumanity will be documented in this file.
 
+## [0.17.0] - 2026-02-14
+
+### Added
+- Post-launch automation package:
+  - smoke test script (`ops/smoke_test.sh`)
+  - scheduled uptime workflow (`.github/workflows/uptime-check.yml`)
+  - incident issue template (`.github/ISSUE_TEMPLATE/incident_report.yml`)
+
 ## [0.16.0] - 2026-02-14
 
 ### Added

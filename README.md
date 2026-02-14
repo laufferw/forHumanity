@@ -136,7 +136,9 @@ docker compose -f docker-compose.production.yml exec backend npm run seed:admin
 - Incident response guide: `ops/INCIDENT_RUNBOOK.md`
 - Backup/recovery guide: `ops/BACKUP_RECOVERY.md`
 - Launch checklist: `ops/LAUNCH_CHECKLIST.md`
+- Smoke test script: `ops/smoke_test.sh`
 - Scheduled/manual backup workflow: `.github/workflows/mongo-backup.yml`
+- Scheduled uptime checks: `.github/workflows/uptime-check.yml`
 - Env sanity check: `ops/check_env.sh`
 - Release preflight: `ops/preflight.sh`
 
@@ -151,6 +153,16 @@ docker compose -f docker-compose.production.yml exec backend npm run seed:admin
 ```
 
 4. If green, deploy/restart staging/prod per your runbook
+
+## Post-launch automation
+
+Run smoke test manually:
+
+```bash
+./ops/smoke_test.sh https://your-domain.example
+```
+
+Set repository secret `PRODUCTION_BASE_URL` to enable scheduled uptime checks.
 
 ## Current app shell
 

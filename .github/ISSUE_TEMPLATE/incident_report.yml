@@ -1,0 +1,47 @@
+name: Incident report
+about: Report production or staging incidents
+title: "[INCIDENT] <short summary>"
+labels: [incident, ops]
+body:
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: staging or production
+      placeholder: production
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Brief incident summary
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: User impact, scope, duration
+    validations:
+      required: true
+
+  - type: input
+    id: requestId
+    attributes:
+      label: Request ID / Error ID
+      description: Include any x-request-id or errorId if available
+
+  - type: textarea
+    id: timeline
+    attributes:
+      label: Timeline
+      description: Key timestamps and actions taken
+
+  - type: textarea
+    id: remediation
+    attributes:
+      label: Remediation + follow-up
+      description: What fixed it and what should be prevented next
