@@ -114,6 +114,20 @@ docker compose -f docker-compose.staging.yml down
 - Incident response guide: `ops/INCIDENT_RUNBOOK.md`
 - Backup/recovery guide: `ops/BACKUP_RECOVERY.md`
 - Scheduled/manual backup workflow: `.github/workflows/mongo-backup.yml`
+- Env sanity check: `ops/check_env.sh`
+- Release preflight: `ops/preflight.sh`
+
+## Release process
+
+1. Update `CHANGELOG.md`
+2. Ensure `.env.staging` is present and valid
+3. Run:
+
+```bash
+./ops/preflight.sh
+```
+
+4. If green, deploy/restart staging/prod per your runbook
 
 ## Current app shell
 
