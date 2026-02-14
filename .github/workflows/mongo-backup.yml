@@ -1,0 +1,33 @@
+name: Mongo Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'
+
+jobs:
+  backup:
+    if: ${{ secrets.MONGODB_URI != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MongoDB tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mongodb-database-tools
+
+      - name: Create backup artifact
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          chmod +x backend/scripts/backupMongo.sh
+          ./backend/scripts/backupMongo.sh
+
+      - name: Upload backup artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongo-backup-${{ github.run_id }}
+          path: backups/*.tgz
+          retention-days: 14
