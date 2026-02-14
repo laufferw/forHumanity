@@ -66,6 +66,14 @@ npm run seed:admin
 
 Then log in with that account and open `/admin`.
 
+## Production hardening defaults
+
+Backend now includes:
+- `helmet` security headers
+- API rate limiting (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`)
+- stricter production startup validation for `JWT_SECRET`
+- health endpoint: `GET /api/health`
+
 ## Staging deployment (Docker Compose)
 
 1. Copy env file:
