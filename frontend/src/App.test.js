@@ -6,6 +6,7 @@ const mockCreateRequest = jest.fn();
 const mockGetUserRequests = jest.fn();
 const mockGetAllUsers = jest.fn();
 const mockGetAllRequests = jest.fn();
+const mockGetDashboardStats = jest.fn();
 
 jest.mock('./services/api', () => ({
   authService: {
@@ -30,6 +31,7 @@ jest.mock('./services/api', () => ({
   },
   adminService: {
     getAllUsers: (...args) => mockGetAllUsers(...args),
+    getDashboardStats: (...args) => mockGetDashboardStats(...args),
   },
 }));
 
@@ -39,11 +41,13 @@ beforeEach(() => {
   mockGetUserRequests.mockReset();
   mockGetAllUsers.mockReset();
   mockGetAllRequests.mockReset();
+  mockGetDashboardStats.mockReset();
 
   mockCreateRequest.mockResolvedValue({ ok: true });
   mockGetUserRequests.mockResolvedValue([]);
   mockGetAllUsers.mockResolvedValue([]);
   mockGetAllRequests.mockResolvedValue([]);
+  mockGetDashboardStats.mockResolvedValue({ users: 0, requests: { total: 0, pending: 0, completed: 0 } });
 });
 
 test('submits request form', async () => {
@@ -74,6 +78,10 @@ test('shows admin dashboard link and stats for admin user', async () => {
   localStorage.setItem('token', 't');
   localStorage.setItem('user', JSON.stringify({ id: 'a1', name: 'Admin', role: 'admin' }));
   mockGetAllUsers.mockResolvedValue([{ _id: 'u1' }, { _id: 'u2' }]);
+  mockGetDashboardStats.mockResolvedValue({
+    users: 2,
+    requests: { total: 2, pending: 1, completed: 1 },
+  });
   mockGetAllRequests.mockResolvedValue([
     { _id: 'r1', status: 'pending', user: { name: 'W' }, location: { address: 'A' } },
     { _id: 'r2', status: 'completed', user: { name: 'X' }, location: { address: 'B' } },
@@ -87,6 +95,7 @@ test('shows admin dashboard link and stats for admin user', async () => {
 
   fireEvent.click(screen.getByRole('link', { name: 'Admin' }));
 
+  await waitFor(() => expect(mockGetDashboardStats).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(mockGetAllUsers).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(mockGetAllRequests).toHaveBeenCalledTimes(1));
 
