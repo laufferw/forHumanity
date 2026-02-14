@@ -6,8 +6,14 @@ const User = require('../models/User');
 
 const auth = require('../middleware/auth');
 
-const MAX_FAILED_LOGIN_ATTEMPTS = Number(process.env.MAX_FAILED_LOGIN_ATTEMPTS || 5);
-const LOCKOUT_MINUTES = Number(process.env.LOGIN_LOCKOUT_MINUTES || 15);
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+};
+
+const MAX_FAILED_LOGIN_ATTEMPTS = parsePositiveInt(process.env.MAX_FAILED_LOGIN_ATTEMPTS, 5);
+const LOCKOUT_MINUTES = parsePositiveInt(process.env.LOGIN_LOCKOUT_MINUTES, 15);
+const FAILED_ATTEMPT_TTL_MINUTES = parsePositiveInt(process.env.FAILED_ATTEMPT_TTL_MINUTES, 60);
 const TOKEN_TTL = process.env.AUTH_TOKEN_TTL || '1d';
 
 const loginAttempts = new Map();
@@ -50,7 +56,23 @@ const serializeUser = (user) => ({
   status: user.status,
 });
 
+const purgeExpiredLoginAttempts = () => {
+  const now = Date.now();
+  const ttlMs = FAILED_ATTEMPT_TTL_MINUTES * 60 * 1000;
+
+  for (const [key, record] of loginAttempts.entries()) {
+    const lockExpired = record.lockedUntil && record.lockedUntil <= now;
+    const ttlExpired = now - (record.lastFailedAt || record.createdAt || now) > ttlMs;
+
+    if (lockExpired || ttlExpired) {
+      loginAttempts.delete(key);
+    }
+  }
+};
+
 const getLockState = (email) => {
+  purgeExpiredLoginAttempts();
+
   const key = normalizeEmail(email);
   const record = loginAttempts.get(key);
   if (!record) return { key, locked: false };
@@ -59,22 +81,20 @@ const getLockState = (email) => {
     return { key, locked: true, retryMs: record.lockedUntil - Date.now() };
   }
 
-  if (record.lockedUntil && record.lockedUntil <= Date.now()) {
-    loginAttempts.delete(key);
-  }
-
   return { key, locked: false };
 };
 
 const registerFailedAttempt = (email) => {
   const key = normalizeEmail(email);
-  const existing = loginAttempts.get(key) || { count: 0, lockedUntil: null };
+  const now = Date.now();
+  const existing = loginAttempts.get(key) || { count: 0, lockedUntil: null, createdAt: now };
   const nextCount = existing.count + 1;
 
   const updated = {
     count: nextCount,
-    lockedUntil:
-      nextCount >= MAX_FAILED_LOGIN_ATTEMPTS ? Date.now() + LOCKOUT_MINUTES * 60 * 1000 : null,
+    lockedUntil: nextCount >= MAX_FAILED_LOGIN_ATTEMPTS ? now + LOCKOUT_MINUTES * 60 * 1000 : null,
+    createdAt: existing.createdAt || now,
+    lastFailedAt: now,
   };
 
   loginAttempts.set(key, updated);
