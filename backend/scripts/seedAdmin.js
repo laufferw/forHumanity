@@ -4,14 +4,16 @@ const User = require('../models/User');
 
 async function run() {
   const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/forHumanity';
-  const email = process.env.ADMIN_EMAIL;
+  const rawEmail = process.env.ADMIN_EMAIL;
   const password = process.env.ADMIN_PASSWORD;
   const name = process.env.ADMIN_NAME || 'forHumanity Admin';
 
-  if (!email || !password) {
+  if (!rawEmail || !password) {
     console.error('Missing ADMIN_EMAIL or ADMIN_PASSWORD in environment.');
     process.exit(1);
   }
+
+  const email = rawEmail.trim().toLowerCase();
 
   await mongoose.connect(MONGODB_URI);
 

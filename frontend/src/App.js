@@ -280,7 +280,10 @@ function AdminPage() {
   const [error, setError] = useState('');
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
-  const [stats, setStats] = useState({ users: 0, requests: { total: 0, pending: 0, completed: 0 } });
+  const [stats, setStats] = useState({
+    users: 0,
+    requests: { total: 0, pending: 0, completed: 0 },
+  });
   const [savingRequestId, setSavingRequestId] = useState('');
 
   const load = async (cancelledRef) => {
@@ -294,9 +297,7 @@ function AdminPage() {
       ]);
 
       if (!cancelledRef.current) {
-        setStats(
-          dashboardStats || { users: 0, requests: { total: 0, pending: 0, completed: 0 } }
-        );
+        setStats(dashboardStats || { users: 0, requests: { total: 0, pending: 0, completed: 0 } });
         setUsers(Array.isArray(allUsers) ? allUsers : []);
         setRequests(Array.isArray(allRequests) ? allRequests : []);
       }
@@ -383,7 +384,8 @@ function AdminPage() {
             {requests.slice(0, 12).map((r) => (
               <li key={r._id || `${r.createdAt}-${r.user?.name}`} className="request-row">
                 <div>
-                  <strong>{r.user?.name || 'Unknown'}</strong> — {r.location?.address || 'No address'}
+                  <strong>{r.user?.name || 'Unknown'}</strong> —{' '}
+                  {r.location?.address || 'No address'}
                   <div className="muted">Current: {r.status}</div>
                 </div>
                 <div className="request-controls">

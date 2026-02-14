@@ -47,7 +47,10 @@ beforeEach(() => {
   mockGetUserRequests.mockResolvedValue([]);
   mockGetAllUsers.mockResolvedValue([]);
   mockGetAllRequests.mockResolvedValue([]);
-  mockGetDashboardStats.mockResolvedValue({ users: 0, requests: { total: 0, pending: 0, completed: 0 } });
+  mockGetDashboardStats.mockResolvedValue({
+    users: 0,
+    requests: { total: 0, pending: 0, completed: 0 },
+  });
 });
 
 test('submits request form', async () => {
