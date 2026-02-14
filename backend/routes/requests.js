@@ -15,13 +15,13 @@ const normalizeLocation = ({ location, address }) => {
   // and newer payloads where location is an object.
   if (location && typeof location === 'object') {
     const normalized = {
-      address: location.address || address || ''
+      address: location.address || address || '',
     };
 
     if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
       normalized.coordinates = {
         type: 'Point',
-        coordinates: location.coordinates
+        coordinates: location.coordinates,
       };
     }
 
@@ -29,7 +29,7 @@ const normalizeLocation = ({ location, address }) => {
   }
 
   return {
-    address: address || location || ''
+    address: address || location || '',
   };
 };
 
@@ -131,12 +131,12 @@ router.post('/', async (req, res) => {
       user: {
         name,
         email: email || 'unknown@example.com',
-        phone
+        phone,
       },
       location: normalizeLocation({ location, address }),
       notes,
       userId,
-      status: 'pending'
+      status: 'pending',
     };
 
     const newRequest = new Request(requestPayload);

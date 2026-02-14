@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }) => {
     updateProfile,
     isAuthenticated,
     getUserRole,
-    clearError
+    clearError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

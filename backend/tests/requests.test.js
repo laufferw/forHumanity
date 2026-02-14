@@ -3,7 +3,7 @@ process.env.JWT_SECRET = 'test-secret';
 jest.mock('../middleware/auth', () => (req, res, next) => {
   req.user = {
     id: req.header('x-test-user-id') || 'user-1',
-    role: req.header('x-test-role') || 'volunteer'
+    role: req.header('x-test-role') || 'volunteer',
   };
   next();
 });
@@ -13,20 +13,20 @@ const mockRequestDoc = {
   status: 'pending',
   user: { name: 'William', email: 'w@test.com', phone: '555' },
   location: { address: '123 Main St' },
-  save: jest.fn().mockResolvedValue(true)
+  save: jest.fn().mockResolvedValue(true),
 };
 
 const Request = {
   find: jest.fn(),
   findById: jest.fn(),
-  findByIdAndDelete: jest.fn()
+  findByIdAndDelete: jest.fn(),
 };
 
 function MockRequest(payload) {
   return {
     ...payload,
     _id: 'new-req-1',
-    save: jest.fn().mockResolvedValue({ _id: 'new-req-1', ...payload })
+    save: jest.fn().mockResolvedValue({ _id: 'new-req-1', ...payload }),
   };
 }
 
@@ -49,7 +49,7 @@ describe('requests routes', () => {
       name: 'William',
       phone: '555',
       address: '123 Main St',
-      notes: 'Need support'
+      notes: 'Need support',
     });
 
     expect(res.status).toBe(201);
@@ -71,7 +71,10 @@ describe('requests routes', () => {
   });
 
   test('updates status and stamps completedAt', async () => {
-    Request.findById.mockResolvedValue({ ...mockRequestDoc, save: jest.fn().mockResolvedValue(true) });
+    Request.findById.mockResolvedValue({
+      ...mockRequestDoc,
+      save: jest.fn().mockResolvedValue(true),
+    });
 
     const res = await request(app)
       .put('/api/requests/req-1/status')
@@ -89,7 +92,7 @@ describe('requests routes', () => {
       ...mockRequestDoc,
       status: 'completed',
       completedAt: originalCompletedAt,
-      save: jest.fn().mockResolvedValue(true)
+      save: jest.fn().mockResolvedValue(true),
     });
 
     const res = await request(app)

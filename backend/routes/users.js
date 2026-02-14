@@ -43,18 +43,16 @@ router.post('/register', async (req, res) => {
       password,
       phone,
       role: 'volunteer',
-      status: 'active'
+      status: 'active',
     });
 
     // Save user to database
     await user.save();
 
     // Create JWT token
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+      expiresIn: '1d',
+    });
 
     res.status(201).json({
       token,
@@ -63,8 +61,8 @@ router.post('/register', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status
-      }
+        status: user.status,
+      },
     });
   } catch (err) {
     console.error(err.message);
@@ -94,7 +92,9 @@ router.post('/login', async (req, res) => {
 
     // Check if account is active
     if (user.status !== 'active') {
-      return res.status(400).json({ message: 'Account is not active. Please contact administrator.' });
+      return res
+        .status(400)
+        .json({ message: 'Account is not active. Please contact administrator.' });
     }
 
     // Validate password
@@ -104,11 +104,9 @@ router.post('/login', async (req, res) => {
     }
 
     // Create JWT token
-    const token = jwt.sign(
-      { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '1d' }
-    );
+    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
+      expiresIn: '1d',
+    });
 
     res.json({
       token,
@@ -117,8 +115,8 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        status: user.status
-      }
+        status: user.status,
+      },
     });
   } catch (err) {
     console.error(err.message);
@@ -152,7 +150,7 @@ router.get('/profile', auth, async (req, res) => {
 router.put('/profile', auth, async (req, res) => {
   try {
     const { name, email, phone, currentPassword, newPassword } = req.body;
-    
+
     // Find user by ID
     const user = await User.findById(req.user.id);
     if (!user) {
@@ -190,8 +188,8 @@ router.put('/profile', auth, async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
-        status: user.status
-      }
+        status: user.status,
+      },
     });
   } catch (err) {
     console.error(err.message);
@@ -224,7 +222,7 @@ router.get('/volunteers', auth, adminAuth, async (req, res) => {
     const volunteers = await User.find({ role: 'volunteer' })
       .select('-password')
       .sort({ createdAt: -1 });
-    
+
     res.json(volunteers);
   } catch (err) {
     console.error(err.message);
@@ -240,7 +238,7 @@ router.get('/volunteers', auth, adminAuth, async (req, res) => {
 router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
     const { name, email, phone, role, status } = req.body;
-    
+
     // Find user by ID
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -270,7 +268,7 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
       email: user.email,
       phone: user.phone,
       role: user.role,
-      status: user.status
+      status: user.status,
     });
   } catch (err) {
     console.error(err.message);
@@ -299,4 +297,3 @@ router.delete('/:id', auth, adminAuth, async (req, res) => {
 });
 
 module.exports = router;
-

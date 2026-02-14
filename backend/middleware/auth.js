@@ -21,9 +21,9 @@ const auth = (req, res, next) => {
     // Add user from payload to request object
     req.user = {
       id: decoded.id,
-      role: decoded.role
+      role: decoded.role,
     };
-    
+
     next();
   } catch (err) {
     res.status(401).json({ msg: 'Token is not valid' });
@@ -31,4 +31,3 @@ const auth = (req, res, next) => {
 };
 
 module.exports = auth;
-
