@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { AuthProvider } from './context/AuthContext';
+import App from './App';
 
 const mockCreateRequest = jest.fn();
 const mockGetUserRequests = jest.fn();
@@ -11,24 +13,25 @@ jest.mock('./services/api', () => ({
       const raw = global.localStorage.getItem('user');
       return raw ? JSON.parse(raw) : null;
     },
-    register: jest.fn().mockResolvedValue({ user: { id: 'u2', name: 'New User', role: 'volunteer' } }),
-    login: jest.fn().mockResolvedValue({ user: { id: 'u1', name: 'Test User', role: 'volunteer' } }),
+    register: jest
+      .fn()
+      .mockResolvedValue({ user: { id: 'u2', name: 'New User', role: 'volunteer' } }),
+    login: jest
+      .fn()
+      .mockResolvedValue({ user: { id: 'u1', name: 'Test User', role: 'volunteer' } }),
     logout: jest.fn(),
     updateProfile: jest.fn(),
-    isAuthenticated: () => !!global.localStorage.getItem('token')
+    isAuthenticated: () => !!global.localStorage.getItem('token'),
   },
   requestService: {
     createRequest: (...args) => mockCreateRequest(...args),
     getUserRequests: (...args) => mockGetUserRequests(...args),
-    getAllRequests: (...args) => mockGetAllRequests(...args)
+    getAllRequests: (...args) => mockGetAllRequests(...args),
   },
   adminService: {
-    getAllUsers: (...args) => mockGetAllUsers(...args)
-  }
+    getAllUsers: (...args) => mockGetAllUsers(...args),
+  },
 }));
-
-import { AuthProvider } from './context/AuthContext';
-import App from './App';
 
 beforeEach(() => {
   localStorage.clear();
@@ -55,7 +58,7 @@ test('submits request form', async () => {
   fireEvent.change(screen.getByPlaceholderText('Name'), { target: { value: 'William' } });
   fireEvent.change(screen.getByPlaceholderText('Phone'), { target: { value: '555-1212' } });
   fireEvent.change(screen.getByPlaceholderText('Address or nearby landmark'), {
-    target: { value: '123 Main St' }
+    target: { value: '123 Main St' },
   });
   fireEvent.change(screen.getByPlaceholderText('Notes'), { target: { value: 'Urgent' } });
 
@@ -73,7 +76,7 @@ test('shows admin dashboard link and stats for admin user', async () => {
   mockGetAllUsers.mockResolvedValue([{ _id: 'u1' }, { _id: 'u2' }]);
   mockGetAllRequests.mockResolvedValue([
     { _id: 'r1', status: 'pending', user: { name: 'W' }, location: { address: 'A' } },
-    { _id: 'r2', status: 'completed', user: { name: 'X' }, location: { address: 'B' } }
+    { _id: 'r2', status: 'completed', user: { name: 'X' }, location: { address: 'B' } },
   ]);
 
   render(

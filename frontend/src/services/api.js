@@ -7,8 +7,8 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 const api = axios.create({
   baseURL: API_URL,
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 });
 
 // Add request interceptor to include auth token in headers
@@ -43,7 +43,7 @@ const authService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Login user
   login: async (credentials) => {
     try {
@@ -57,24 +57,24 @@ const authService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Logout user
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   },
-  
+
   // Get current user
   getCurrentUser: () => {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;
   },
-  
+
   // Check if user is authenticated
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
   },
-  
+
   // Update user profile
   updateProfile: async (userData) => {
     try {
@@ -86,7 +86,7 @@ const authService = {
     } catch (error) {
       throw error.response?.data || { message: 'Server error' };
     }
-  }
+  },
 };
 
 // Blanket Request Service
@@ -100,7 +100,7 @@ const requestService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Get all requests (admin only)
   getAllRequests: async (filters = {}) => {
     try {
@@ -110,7 +110,7 @@ const requestService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Get user's requests
   getUserRequests: async () => {
     try {
@@ -120,7 +120,7 @@ const requestService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Get request by ID
   getRequestById: async (requestId) => {
     try {
@@ -130,7 +130,7 @@ const requestService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Update request status
   updateRequestStatus: async (requestId, status) => {
     try {
@@ -140,7 +140,7 @@ const requestService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Assign request to volunteer (admin only)
   assignRequest: async (requestId, userId) => {
     try {
@@ -150,7 +150,7 @@ const requestService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Delete request
   deleteRequest: async (requestId) => {
     try {
@@ -159,7 +159,7 @@ const requestService = {
     } catch (error) {
       throw error.response?.data || { message: 'Server error' };
     }
-  }
+  },
 };
 
 // Admin Service
@@ -173,7 +173,7 @@ const adminService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Update user role (admin only)
   updateUserRole: async (userId, role) => {
     try {
@@ -183,7 +183,7 @@ const adminService = {
       throw error.response?.data || { message: 'Server error' };
     }
   },
-  
+
   // Get dashboard statistics (admin only)
   getDashboardStats: async () => {
     try {
@@ -192,8 +192,7 @@ const adminService = {
     } catch (error) {
       throw error.response?.data || { message: 'Server error' };
     }
-  }
+  },
 };
 
 export { authService, requestService, adminService };
-

@@ -42,7 +42,15 @@ function Shell() {
           <Route path="/login" element={<AuthPage />} />
           <Route
             path="/my-requests"
-            element={loading ? <LoadingCard message="Checking your session..." /> : authed ? <MyRequestsPage /> : <Navigate to="/login" replace />}
+            element={
+              loading ? (
+                <LoadingCard message="Checking your session..." />
+              ) : authed ? (
+                <MyRequestsPage />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
           />
           <Route
             path="/admin"
@@ -70,7 +78,8 @@ function Home() {
         Submit a request when someone needs help, and volunteers can coordinate fulfillment quickly.
       </p>
       <p>
-        Start by creating a request. If you register an account, you can also track your submitted requests.
+        Start by creating a request. If you register an account, you can also track your submitted
+        requests.
       </p>
     </section>
   );
@@ -103,7 +112,10 @@ function AuthPage() {
     <section className="card">
       <div className="row between">
         <h2>{mode === 'login' ? 'Login' : 'Create account'}</h2>
-        <button className="secondary" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+        <button
+          className="secondary"
+          onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
+        >
           Switch to {mode === 'login' ? 'register' : 'login'}
         </button>
       </div>
@@ -204,7 +216,9 @@ function RequestPage() {
         <button type="submit">Submit request</button>
       </form>
 
-      {status.text && <p className={status.type === 'error' ? 'error' : 'success'}>{status.text}</p>}
+      {status.text && (
+        <p className={status.type === 'error' ? 'error' : 'success'}>{status.text}</p>
+      )}
     </section>
   );
 }
@@ -276,7 +290,7 @@ function AdminPage() {
       try {
         const [allUsers, allRequests] = await Promise.all([
           adminService.getAllUsers(),
-          requestService.getAllRequests()
+          requestService.getAllRequests(),
         ]);
 
         if (!cancelled) {
@@ -323,7 +337,8 @@ function AdminPage() {
           <ul className="list">
             {requests.slice(0, 8).map((r) => (
               <li key={r._id || `${r.createdAt}-${r.user?.name}`}>
-                <strong>{r.status}</strong> — {r.user?.name || 'Unknown'} — {r.location?.address || 'No address'}
+                <strong>{r.status}</strong> — {r.user?.name || 'Unknown'} —{' '}
+                {r.location?.address || 'No address'}
               </li>
             ))}
           </ul>

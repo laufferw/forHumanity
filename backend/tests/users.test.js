@@ -3,7 +3,7 @@ process.env.JWT_SECRET = 'test-secret';
 jest.mock('../middleware/auth', () => (req, res, next) => {
   req.user = {
     id: req.header('x-test-user-id') || 'admin-1',
-    role: req.header('x-test-role') || 'admin'
+    role: req.header('x-test-role') || 'admin',
   };
   next();
 });
@@ -12,14 +12,14 @@ const User = {
   findOne: jest.fn(),
   findById: jest.fn(),
   find: jest.fn(),
-  findByIdAndDelete: jest.fn()
+  findByIdAndDelete: jest.fn(),
 };
 
 function MockUser(payload) {
   return {
     ...payload,
     id: payload.id || 'user-123',
-    save: jest.fn().mockResolvedValue(true)
+    save: jest.fn().mockResolvedValue(true),
   };
 }
 
@@ -47,7 +47,7 @@ describe('users routes', () => {
       name: 'William',
       email: 'william@test.com',
       password: 'password123',
-      phone: '555'
+      phone: '555',
     });
 
     expect(res.status).toBe(201);
@@ -61,7 +61,7 @@ describe('users routes', () => {
     const res = await request(app).post('/api/users/register').send({
       name: 'William',
       email: 'william@test.com',
-      password: 'password123'
+      password: 'password123',
     });
 
     expect(res.status).toBe(400);
@@ -74,7 +74,7 @@ describe('users routes', () => {
       email: 'u@test.com',
       role: 'volunteer',
       status: 'active',
-      save: jest.fn().mockResolvedValue(true)
+      save: jest.fn().mockResolvedValue(true),
     };
     User.findById.mockResolvedValue(userDoc);
 
