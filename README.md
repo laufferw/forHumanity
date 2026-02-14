@@ -66,6 +66,34 @@ npm run seed:admin
 
 Then log in with that account and open `/admin`.
 
+## Staging deployment (Docker Compose)
+
+1. Copy env file:
+
+```bash
+cp .env.staging.example .env.staging
+```
+
+2. Start stack:
+
+```bash
+docker compose -f docker-compose.staging.yml up -d --build
+```
+
+3. Open app: `http://localhost:8080`
+
+4. Seed admin in running backend container:
+
+```bash
+docker compose -f docker-compose.staging.yml exec backend npm run seed:admin
+```
+
+5. Stop stack:
+
+```bash
+docker compose -f docker-compose.staging.yml down
+```
+
 ## Current app shell
 
 - Home page (`/`)
