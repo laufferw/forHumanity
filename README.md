@@ -109,10 +109,33 @@ docker compose -f docker-compose.staging.yml exec backend npm run seed:admin
 docker compose -f docker-compose.staging.yml down
 ```
 
+## Production deployment (Docker Compose)
+
+1. Copy env file:
+
+```bash
+cp .env.production.example .env.production
+```
+
+2. Start production stack:
+
+```bash
+docker compose -f docker-compose.production.yml up -d --build
+```
+
+3. Seed admin user:
+
+```bash
+docker compose -f docker-compose.production.yml exec backend npm run seed:admin
+```
+
+4. Use reverse proxy sample at `deploy/nginx.reverse-proxy.example.conf`
+
 ## Ops
 
 - Incident response guide: `ops/INCIDENT_RUNBOOK.md`
 - Backup/recovery guide: `ops/BACKUP_RECOVERY.md`
+- Launch checklist: `ops/LAUNCH_CHECKLIST.md`
 - Scheduled/manual backup workflow: `.github/workflows/mongo-backup.yml`
 - Env sanity check: `ops/check_env.sh`
 - Release preflight: `ops/preflight.sh`
