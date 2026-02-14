@@ -96,6 +96,24 @@ button.secondary {
   padding-left: 18px;
 }
 
+.request-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.request-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.muted {
+  color: #6c7485;
+  font-size: 0.9rem;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

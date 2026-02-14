@@ -280,37 +280,78 @@ function AdminPage() {
   const [error, setError] = useState('');
   const [users, setUsers] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [stats, setStats] = useState({ users: 0, requests: { total: 0, pending: 0, completed: 0 } });
+  const [savingRequestId, setSavingRequestId] = useState('');
+
+  const load = async (cancelledRef) => {
+    setLoading(true);
+    setError('');
+    try {
+      const [dashboardStats, allUsers, allRequests] = await Promise.all([
+        adminService.getDashboardStats(),
+        adminService.getAllUsers(),
+        requestService.getAllRequests(),
+      ]);
+
+      if (!cancelledRef.current) {
+        setStats(
+          dashboardStats || { users: 0, requests: { total: 0, pending: 0, completed: 0 } }
+        );
+        setUsers(Array.isArray(allUsers) ? allUsers : []);
+        setRequests(Array.isArray(allRequests) ? allRequests : []);
+      }
+    } catch (err) {
+      if (!cancelledRef.current) setError(err?.message || 'Failed to load admin data.');
+    } finally {
+      if (!cancelledRef.current) setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const [allUsers, allRequests] = await Promise.all([
-          adminService.getAllUsers(),
-          requestService.getAllRequests(),
-        ]);
-
-        if (!cancelled) {
-          setUsers(Array.isArray(allUsers) ? allUsers : []);
-          setRequests(Array.isArray(allRequests) ? allRequests : []);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err?.message || 'Failed to load admin data.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    load();
+    const cancelledRef = { current: false };
+    load(cancelledRef);
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
   }, []);
 
-  const pendingCount = requests.filter((r) => r.status === 'pending').length;
+  const refreshQuick = async () => {
+    const cancelledRef = { current: false };
+    await load(cancelledRef);
+  };
+
+  const updateRequestInState = (updated) => {
+    setRequests((prev) => prev.map((r) => (r._id === updated._id ? updated : r)));
+  };
+
+  const handleStatusChange = async (requestId, status) => {
+    setSavingRequestId(requestId);
+    setError('');
+    try {
+      const updated = await requestService.updateRequestStatus(requestId, status);
+      updateRequestInState(updated);
+      await refreshQuick();
+    } catch (err) {
+      setError(err?.message || 'Failed to update request status.');
+    } finally {
+      setSavingRequestId('');
+    }
+  };
+
+  const handleAssign = async (requestId, assignedTo) => {
+    setSavingRequestId(requestId);
+    setError('');
+    try {
+      const updated = await requestService.assignRequest(requestId, assignedTo || null);
+      updateRequestInState(updated);
+    } catch (err) {
+      setError(err?.message || 'Failed to assign request.');
+    } finally {
+      setSavingRequestId('');
+    }
+  };
+
+  const volunteers = users.filter((u) => u.role === 'volunteer' || u.role === 'admin');
 
   return (
     <section className="card">
@@ -321,24 +362,54 @@ function AdminPage() {
         <>
           <div className="stats-grid">
             <div className="stat-card">
-              <h3>{users.length}</h3>
+              <h3>{stats.users}</h3>
               <p>Users</p>
             </div>
             <div className="stat-card">
-              <h3>{requests.length}</h3>
+              <h3>{stats.requests.total}</h3>
               <p>Total requests</p>
             </div>
             <div className="stat-card">
-              <h3>{pendingCount}</h3>
+              <h3>{stats.requests.pending}</h3>
               <p>Pending requests</p>
+            </div>
+            <div className="stat-card">
+              <h3>{stats.requests.completed}</h3>
+              <p>Completed requests</p>
             </div>
           </div>
           <h3>Recent requests</h3>
           <ul className="list">
-            {requests.slice(0, 8).map((r) => (
-              <li key={r._id || `${r.createdAt}-${r.user?.name}`}>
-                <strong>{r.status}</strong> — {r.user?.name || 'Unknown'} —{' '}
-                {r.location?.address || 'No address'}
+            {requests.slice(0, 12).map((r) => (
+              <li key={r._id || `${r.createdAt}-${r.user?.name}`} className="request-row">
+                <div>
+                  <strong>{r.user?.name || 'Unknown'}</strong> — {r.location?.address || 'No address'}
+                  <div className="muted">Current: {r.status}</div>
+                </div>
+                <div className="request-controls">
+                  <select
+                    value={r.status}
+                    disabled={savingRequestId === r._id}
+                    onChange={(e) => handleStatusChange(r._id, e.target.value)}
+                  >
+                    <option value="pending">pending</option>
+                    <option value="in-progress">in-progress</option>
+                    <option value="completed">completed</option>
+                    <option value="cancelled">cancelled</option>
+                  </select>
+                  <select
+                    value={r.assignedTo || ''}
+                    disabled={savingRequestId === r._id}
+                    onChange={(e) => handleAssign(r._id, e.target.value)}
+                  >
+                    <option value="">unassigned</option>
+                    {volunteers.map((u) => (
+                      <option key={u.id || u._id} value={u.id || u._id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </li>
             ))}
           </ul>

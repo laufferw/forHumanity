@@ -170,7 +170,7 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     if (status) {
       applyCompletionTimestampTransition(request, status);
     }
-    if (assignedTo) request.assignedTo = assignedTo;
+    if (assignedTo !== undefined) request.assignedTo = assignedTo || undefined;
 
     await request.save();
     return res.json(request);

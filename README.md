@@ -44,6 +44,8 @@ Frontend defaults to `http://localhost:3000` and calls API at `REACT_APP_API_URL
 
 - `npm run dev` — run server with nodemon
 - `npm start` — run server
+- `npm test` — backend route tests
+- `npm run seed:admin` — create/update an admin account
 
 ### Frontend
 
@@ -51,9 +53,26 @@ Frontend defaults to `http://localhost:3000` and calls API at `REACT_APP_API_URL
 - `npm run build` — production build
 - `npm test` — tests
 
+## Bootstrap an admin account
+
+From `backend/`:
+
+```bash
+export ADMIN_EMAIL=you@example.com
+export ADMIN_PASSWORD='change-this-password'
+export ADMIN_NAME='Ops Admin'
+npm run seed:admin
+```
+
+Then log in with that account and open `/admin`.
+
 ## Current app shell
 
 - Home page (`/`)
 - Request form (`/request`)
 - Login/register page (`/login`)
 - My requests (`/my-requests`, requires login)
+- Admin dashboard (`/admin`, admin role only)
+  - live counts (users, total/pending/completed requests)
+  - request status updates
+  - request assignment to volunteers/admins
