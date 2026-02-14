@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "seed:admin": "node scripts/seedAdmin.js"
+    "seed:admin": "node scripts/seedAdmin.js",
+    "backup:mongo": "bash scripts/backupMongo.sh",
+    "restore:mongo": "bash scripts/restoreMongo.sh"
   },
   "keywords": [],
   "author": "",

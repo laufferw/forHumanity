@@ -46,6 +46,8 @@ Frontend defaults to `http://localhost:3000` and calls API at `REACT_APP_API_URL
 - `npm start` — run server
 - `npm test` — backend route tests
 - `npm run seed:admin` — create/update an admin account
+- `npm run backup:mongo` — create compressed Mongo backup
+- `npm run restore:mongo -- <archive.tgz>` — restore Mongo backup
 
 ### Frontend
 
@@ -107,6 +109,8 @@ docker compose -f docker-compose.staging.yml down
 ## Ops
 
 - Incident response guide: `ops/INCIDENT_RUNBOOK.md`
+- Backup/recovery guide: `ops/BACKUP_RECOVERY.md`
+- Scheduled/manual backup workflow: `.github/workflows/mongo-backup.yml`
 
 ## Current app shell
 
