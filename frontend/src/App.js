@@ -13,7 +13,7 @@ function App() {
 }
 
 function Shell() {
-  const { user, logout, isAuthenticated, getUserRole } = useAuth();
+  const { user, logout, isAuthenticated, getUserRole, loading } = useAuth();
   const authed = isAuthenticated();
   const role = getUserRole();
   const isAdmin = role === 'admin';
@@ -42,11 +42,19 @@ function Shell() {
           <Route path="/login" element={<AuthPage />} />
           <Route
             path="/my-requests"
-            element={authed ? <MyRequestsPage /> : <Navigate to="/login" replace />}
+            element={loading ? <LoadingCard message="Checking your session..." /> : authed ? <MyRequestsPage /> : <Navigate to="/login" replace />}
           />
           <Route
             path="/admin"
-            element={authed && isAdmin ? <AdminPage /> : <Navigate to="/login" replace />}
+            element={
+              loading ? (
+                <LoadingCard message="Checking your session..." />
+              ) : authed && isAdmin ? (
+                <AdminPage />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
           />
         </Routes>
       </main>
@@ -241,6 +249,14 @@ function MyRequestsPage() {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function LoadingCard({ message }) {
+  return (
+    <section className="card">
+      <p>{message || 'Loading...'}</p>
     </section>
   );
 }

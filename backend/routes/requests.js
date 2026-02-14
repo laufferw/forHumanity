@@ -33,6 +33,20 @@ const normalizeLocation = ({ location, address }) => {
   };
 };
 
+const applyCompletionTimestampTransition = (request, nextStatus) => {
+  const previousStatus = request.status;
+
+  if (nextStatus === 'completed' && previousStatus !== 'completed') {
+    request.completedAt = new Date();
+  }
+
+  if (nextStatus !== 'completed' && previousStatus === 'completed') {
+    request.completedAt = undefined;
+  }
+
+  request.status = nextStatus;
+};
+
 /**
  * @route   GET /api/requests
  * @desc    Get all requests (admins only)
@@ -154,8 +168,7 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     if (location || address) request.location = normalizeLocation({ location, address });
     if (notes !== undefined) request.notes = notes;
     if (status) {
-      request.status = status;
-      request.completedAt = status === 'completed' ? new Date() : undefined;
+      applyCompletionTimestampTransition(request, status);
     }
     if (assignedTo) request.assignedTo = assignedTo;
 
@@ -193,8 +206,7 @@ router.put('/:id/status', auth, async (req, res) => {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    request.status = status;
-    request.completedAt = status === 'completed' ? new Date() : undefined;
+    applyCompletionTimestampTransition(request, status);
     await request.save();
 
     return res.json(request);
