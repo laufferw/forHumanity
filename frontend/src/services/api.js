@@ -3,7 +3,9 @@ import axios from 'axios';
 // Create axios instance with base URL from environment variable
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-// Create axios instance
+// Fired when the API rejects the stored token so the auth context can log out.
+export const AUTH_EXPIRED_EVENT = 'forhumanity:auth-expired';
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -16,10 +18,7 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
-      // Support backend auth middleware expecting x-auth-token.
-      // Keep Authorization for future compatibility.
       config.headers['x-auth-token'] = token;
-      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
@@ -28,171 +27,109 @@ api.interceptors.request.use(
   }
 );
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const sentToken = Boolean(error.config?.headers?.['x-auth-token']);
+    if (error.response?.status === 401 && sentToken) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Unwraps the response body and turns failures into { message } objects.
+const call = async (promise) => {
+  try {
+    const response = await promise;
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || { message: 'Could not reach the server. Please try again.' };
+  }
+};
+
+const storeSession = (data) => {
+  if (data.token) {
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+  }
+  return data;
+};
+
 // Authentication Service
 const authService = {
-  // Register a new user
-  register: async (userData) => {
-    try {
-      const response = await api.post('/users/register', userData);
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-      }
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  register: async (userData) => storeSession(await call(api.post('/users/register', userData))),
 
-  // Login user
-  login: async (credentials) => {
-    try {
-      const response = await api.post('/users/login', credentials);
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-      }
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  login: async (credentials) => storeSession(await call(api.post('/users/login', credentials))),
 
-  // Logout user
+  // Validates the stored token and returns a fresh one with current user data.
+  refreshSession: async () => storeSession(await call(api.post('/users/session/refresh'))),
+
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   },
 
-  // Get current user
   getCurrentUser: () => {
-    const user = localStorage.getItem('user');
-    return user ? JSON.parse(user) : null;
+    try {
+      const user = localStorage.getItem('user');
+      return user ? JSON.parse(user) : null;
+    } catch {
+      return null;
+    }
   },
 
-  // Check if user is authenticated
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
   },
 
-  // Update user profile
   updateProfile: async (userData) => {
-    try {
-      const response = await api.put('/users/profile', userData);
-      if (response.data.user) {
-        localStorage.setItem('user', JSON.stringify(response.data.user));
-      }
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
+    const data = await call(api.put('/users/profile', userData));
+    if (data.user) {
+      localStorage.setItem('user', JSON.stringify(data.user));
     }
+    return data;
   },
 };
 
 // Blanket Request Service
 const requestService = {
-  // Create a new blanket request
-  createRequest: async (requestData) => {
-    try {
-      const response = await api.post('/requests', requestData);
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  createRequest: (requestData) => call(api.post('/requests', requestData)),
 
-  // Get all requests (admin only)
-  getAllRequests: async (filters = {}) => {
-    try {
-      const response = await api.get('/requests', { params: filters });
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  // Admin only; filters: { status }
+  getAllRequests: (filters = {}) => call(api.get('/requests', { params: filters })),
 
-  // Get user's requests
-  getUserRequests: async () => {
-    try {
-      const response = await api.get('/requests/user');
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  // Requests the current user submitted
+  getUserRequests: () => call(api.get('/requests/user')),
 
-  // Get request by ID
-  getRequestById: async (requestId) => {
-    try {
-      const response = await api.get(`/requests/${requestId}`);
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  // Requests assigned to the current user
+  getAssignedRequests: () => call(api.get('/requests/assigned')),
 
-  // Update request status
-  updateRequestStatus: async (requestId, status) => {
-    try {
-      const response = await api.put(`/requests/${requestId}/status`, { status });
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  getRequestById: (requestId) => call(api.get(`/requests/${requestId}`)),
 
-  // Assign request to volunteer (admin only)
-  assignRequest: async (requestId, userId) => {
-    try {
-      const response = await api.put(`/requests/${requestId}`, { assignedTo: userId });
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  updateRequestStatus: (requestId, status) =>
+    call(api.put(`/requests/${requestId}/status`, { status })),
 
-  // Delete request
-  deleteRequest: async (requestId) => {
-    try {
-      const response = await api.delete(`/requests/${requestId}`);
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  // Admin only
+  assignRequest: (requestId, userId) =>
+    call(api.put(`/requests/${requestId}`, { assignedTo: userId })),
+
+  // Admin only
+  deleteRequest: (requestId) => call(api.delete(`/requests/${requestId}`)),
 };
 
 // Admin Service
 const adminService = {
-  // Get all users (admin only)
-  getAllUsers: async () => {
-    try {
-      const response = await api.get('/users');
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  getAllUsers: () => call(api.get('/users')),
 
-  // Update user role (admin only)
-  updateUserRole: async (userId, role) => {
-    try {
-      const response = await api.put(`/users/${userId}`, { role });
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  // updates: { role, status, name, email, phone }
+  updateUser: (userId, updates) => call(api.put(`/users/${userId}`, updates)),
 
-  // Get dashboard statistics (admin only)
-  getDashboardStats: async () => {
-    try {
-      const response = await api.get('/admin/dashboard');
-      return response.data;
-    } catch (error) {
-      throw error.response?.data || { message: 'Server error' };
-    }
-  },
+  deleteUser: (userId) => call(api.delete(`/users/${userId}`)),
+
+  getDashboardStats: () => call(api.get('/admin/dashboard')),
 };
 
 export { authService, requestService, adminService };
