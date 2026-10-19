@@ -172,12 +172,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    if (user.status !== 'active') {
-      return res
-        .status(400)
-        .json({ message: 'Account is not active. Please contact administrator.' });
-    }
-
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       const state = registerFailedAttempt(normalizedEmail);
@@ -188,6 +182,14 @@ router.post('/login', async (req, res) => {
         });
       }
       return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Checked only after the password matches, so account status can't be
+    // used to discover which emails are registered.
+    if (user.status !== 'active') {
+      return res
+        .status(400)
+        .json({ message: 'Account is not active. Please contact administrator.' });
     }
 
     clearFailedAttempts(normalizedEmail);

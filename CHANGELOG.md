@@ -2,6 +2,20 @@
 
 All notable changes to forHumanity will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- `GET /api/requests/:id` is limited to admins, the requester, and the assigned volunteer
+- `PUT /api/requests/:id/status` is limited to admins and the assigned volunteer; requesters may only cancel
+- `POST /api/requests` takes `userId` from the auth token instead of the request body
+- Auth middleware loads role and status from the database, so demoted or suspended users lose access immediately
+- Login no longer reveals account status before the password is verified
+- `/api/metrics` requires `METRICS_TOKEN` (disabled in production when unset); route metrics use route patterns
+- Upgrade bcrypt to v6 and override qs to clear production `npm audit` findings
+
+### Fixed
+- Production compose: add the Mongo healthcheck the backend depends on
+
 ## [0.17.0] - 2026-02-14
 
 ### Added

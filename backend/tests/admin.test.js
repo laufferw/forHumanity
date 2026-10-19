@@ -1,9 +1,13 @@
-jest.mock('../middleware/auth', () => (req, res, next) => {
-  req.user = {
-    id: 'admin-1',
-    role: req.header('x-test-role') || 'volunteer',
+jest.mock('../middleware/auth', () => {
+  const auth = (req, res, next) => {
+    req.user = {
+      id: 'admin-1',
+      role: req.header('x-test-role') || 'volunteer',
+    };
+    next();
   };
-  next();
+  auth.optional = (req, res, next) => next();
+  return auth;
 });
 
 const mockUserModel = {

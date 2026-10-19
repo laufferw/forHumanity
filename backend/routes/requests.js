@@ -33,6 +33,12 @@ const normalizeLocation = ({ location, address }) => {
   };
 };
 
+const sameId = (a, b) => Boolean(a) && Boolean(b) && String(a) === String(b);
+
+const isAdmin = (user) => user.role === 'admin';
+const isOwner = (request, user) => sameId(request.userId, user.id);
+const isAssignee = (request, user) => sameId(request.assignedTo, user.id);
+
 const applyCompletionTimestampTransition = (request, nextStatus) => {
   const previousStatus = request.status;
 
@@ -95,12 +101,16 @@ router.get('/user/:userId', auth, adminAuth, async (req, res) => {
 /**
  * @route   GET /api/requests/:id
  * @desc    Get request by ID
- * @access  Private
+ * @access  Private (admin, the requester, or the assigned volunteer)
  */
 router.get('/:id', auth, async (req, res) => {
   try {
     const request = await Request.findById(req.params.id);
-    if (!request) {
+    // Respond 404 rather than 403 so request IDs can't be probed.
+    if (
+      !request ||
+      !(isAdmin(req.user) || isOwner(request, req.user) || isAssignee(request, req.user))
+    ) {
       return res.status(404).json({ message: 'Request not found' });
     }
 
@@ -117,11 +127,11 @@ router.get('/:id', auth, async (req, res) => {
 /**
  * @route   POST /api/requests
  * @desc    Create a new request
- * @access  Public
+ * @access  Public (linked to the caller's account when a valid token is sent)
  */
-router.post('/', async (req, res) => {
+router.post('/', auth.optional, async (req, res) => {
   try {
-    const { name, email, phone, location, address, notes, userId } = req.body;
+    const { name, email, phone, location, address, notes } = req.body;
 
     if (!name || !phone || (!location && !address)) {
       return res.status(400).json({ message: 'Please provide name, phone, and location/address' });
@@ -135,7 +145,7 @@ router.post('/', async (req, res) => {
       },
       location: normalizeLocation({ location, address }),
       notes,
-      userId,
+      userId: req.user?.id,
       status: 'pending',
     };
 
@@ -186,7 +196,7 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
 /**
  * @route   PUT /api/requests/:id/status
  * @desc    Update request status
- * @access  Private
+ * @access  Private (admin or assigned volunteer; the requester may only cancel)
  */
 router.put('/:id/status', auth, async (req, res) => {
   try {
@@ -204,6 +214,14 @@ router.put('/:id/status', auth, async (req, res) => {
     const request = await Request.findById(req.params.id);
     if (!request) {
       return res.status(404).json({ message: 'Request not found' });
+    }
+
+    const canUpdate =
+      isAdmin(req.user) ||
+      isAssignee(request, req.user) ||
+      (isOwner(request, req.user) && status === 'cancelled');
+    if (!canUpdate) {
+      return res.status(403).json({ message: 'Not allowed to update this request' });
     }
 
     applyCompletionTimestampTransition(request, status);

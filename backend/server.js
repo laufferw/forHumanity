@@ -72,7 +72,10 @@ app.use((req, res, next) => {
     metrics.requestsTotal += 1;
     incrementMetric(metrics.requestsByStatus, String(res.statusCode));
     incrementMetric(metrics.requestsByMethod, req.method);
-    incrementMetric(metrics.requestsByRoute, req.path);
+    // Key by the matched route pattern (e.g. /api/requests/:id), not the raw
+    // path, so unmatched or ID-bearing URLs can't grow this map without bound.
+    const routeKey = req.route ? `${req.baseUrl}${req.route.path}` : 'unmatched';
+    incrementMetric(metrics.requestsByRoute, routeKey);
 
     if (res.statusCode >= 500) {
       metrics.errorsTotal += 1;
@@ -86,7 +89,7 @@ app.use((req, res, next) => {
         type: 'request',
         requestId,
         method: req.method,
-        path: req.path,
+        path: req.originalUrl.split('?')[0],
         statusCode: res.statusCode,
         durationMs,
       })
@@ -121,7 +124,25 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/metrics', (req, res) => {
+// When METRICS_TOKEN is set, callers must send it in x-metrics-token.
+// Without it, metrics stay open in development but are disabled in production.
+const metricsAuth = (req, res, next) => {
+  const expected = process.env.METRICS_TOKEN;
+  if (expected) {
+    const provided = Buffer.from(String(req.header('x-metrics-token') || ''));
+    const wanted = Buffer.from(expected);
+    if (provided.length === wanted.length && crypto.timingSafeEqual(provided, wanted)) {
+      return next();
+    }
+    return res.status(401).json({ message: 'Metrics token required', requestId: req.requestId });
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ message: 'Route not found', requestId: req.requestId });
+  }
+  return next();
+};
+
+app.get('/api/metrics', metricsAuth, (req, res) => {
   res.json({
     status: 'ok',
     service: 'forHumanity-backend',

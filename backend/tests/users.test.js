@@ -1,11 +1,15 @@
 process.env.JWT_SECRET = 'test-secret';
 
-jest.mock('../middleware/auth', () => (req, res, next) => {
-  req.user = {
-    id: req.header('x-test-user-id') || 'admin-1',
-    role: req.header('x-test-role') || 'admin',
+jest.mock('../middleware/auth', () => {
+  const auth = (req, res, next) => {
+    req.user = {
+      id: req.header('x-test-user-id') || 'admin-1',
+      role: req.header('x-test-role') || 'admin',
+    };
+    next();
   };
-  next();
+  auth.optional = (req, res, next) => next();
+  return auth;
 });
 
 const User = {
@@ -107,6 +111,26 @@ describe('users routes', () => {
 
     expect(blocked.status).toBe(429);
     expect(blocked.body.message).toMatch(/Too many failed login attempts/i);
+  });
+
+  test('does not reveal account status when the password is wrong', async () => {
+    User.findOne.mockResolvedValue({
+      id: 'u2',
+      email: 'inactive@test.com',
+      password: 'hashed',
+      role: 'volunteer',
+      status: 'suspended',
+      contactInfo: {},
+    });
+    bcrypt.compare.mockResolvedValue(false);
+
+    const res = await request(app).post('/api/users/login').send({
+      email: 'inactive@test.com',
+      password: 'WrongPass123!',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('Invalid credentials');
   });
 
   test('admin can update user role', async () => {

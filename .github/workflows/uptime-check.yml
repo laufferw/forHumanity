@@ -24,7 +24,9 @@ jobs:
 
       - name: Metrics endpoint
         run: |
-          STATUS=$(curl -sS -o /tmp/metrics.json -w "%{http_code}" "${{ secrets.PRODUCTION_BASE_URL }}/api/metrics")
+          STATUS=$(curl -sS -o /tmp/metrics.json -w "%{http_code}" \
+            -H "x-metrics-token: ${{ secrets.METRICS_TOKEN }}" \
+            "${{ secrets.PRODUCTION_BASE_URL }}/api/metrics")
           echo "Metrics status: $STATUS"
           test "$STATUS" = "200"
 

@@ -78,7 +78,7 @@ Backend now includes:
 - stronger password policy (upper/lower/number/special)
 - stricter production startup validation for `JWT_SECRET`
 - health endpoint: `GET /api/health`
-- metrics endpoint: `GET /api/metrics`
+- metrics endpoint: `GET /api/metrics` (requires `x-metrics-token: $METRICS_TOKEN`; disabled in production when unset)
 - request and error correlation IDs (`x-request-id`, `errorId`)
 
 ## Staging deployment (Docker Compose)
@@ -162,7 +162,7 @@ Run smoke test manually:
 ./ops/smoke_test.sh https://your-domain.example
 ```
 
-Set repository secret `PRODUCTION_BASE_URL` to enable scheduled uptime checks.
+Set repository secrets `PRODUCTION_BASE_URL` and `METRICS_TOKEN` to enable scheduled uptime checks. Export `METRICS_TOKEN` before running the smoke test.
 
 ## Current app shell
 
