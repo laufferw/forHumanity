@@ -1,5 +1,5 @@
 const request = require('supertest');
-const { app, validateRuntimeConfig } = require('../server');
+const { app, validateRuntimeConfig, parseTrustProxy } = require('../server');
 
 describe('health + runtime hardening', () => {
   test('returns health payload and request id', async () => {
@@ -54,6 +54,13 @@ describe('health + runtime hardening', () => {
     const res = await request(app).get('/api/metrics');
     expect(res.body.requests.byRoute.unmatched).toBeGreaterThan(0);
     expect(res.body.requests.byRoute['/api/does-not-exist-123']).toBeUndefined();
+  });
+
+  test('never trusts every proxy hop', () => {
+    expect(parseTrustProxy('true')).toBe(1);
+    expect(parseTrustProxy('2')).toBe(2);
+    expect(parseTrustProxy('false')).toBe(false);
+    expect(parseTrustProxy(undefined)).toBe(false);
   });
 
   test('blocks weak JWT secret in production', () => {

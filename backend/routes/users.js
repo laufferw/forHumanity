@@ -6,6 +6,7 @@ const User = require('../models/User');
 
 const auth = require('../middleware/auth');
 const { sendError } = require('../utils/http');
+const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require('../utils/password');
 
 const VALID_ROLES = ['volunteer', 'admin'];
 const VALID_STATUSES = ['active', 'inactive', 'pending', 'suspended'];
@@ -34,18 +35,6 @@ const normalizeEmail = (email) =>
   String(email || '')
     .trim()
     .toLowerCase();
-
-const isStrongPassword = (password) => {
-  if (!password || password.length < 8) return false;
-  const hasUpper = /[A-Z]/.test(password);
-  const hasLower = /[a-z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasSpecial = /[^A-Za-z0-9]/.test(password);
-  return hasUpper && hasLower && hasNumber && hasSpecial;
-};
-
-const getPasswordPolicyMessage = () =>
-  'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.';
 
 const issueToken = (user) =>
   jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
@@ -119,7 +108,7 @@ router.post('/register', async (req, res) => {
     }
 
     if (!isStrongPassword(password)) {
-      return res.status(400).json({ message: getPasswordPolicyMessage() });
+      return res.status(400).json({ message: PASSWORD_POLICY_MESSAGE });
     }
 
     const normalizedEmail = normalizeEmail(email);
@@ -261,7 +250,7 @@ router.put('/profile', auth, async (req, res) => {
 
     if (currentPassword && newPassword) {
       if (!isStrongPassword(newPassword)) {
-        return res.status(400).json({ message: getPasswordPolicyMessage() });
+        return res.status(400).json({ message: PASSWORD_POLICY_MESSAGE });
       }
 
       const isMatch = await bcrypt.compare(currentPassword, user.password);

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require('../utils/password');
 
 async function run() {
   const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/forHumanity';
@@ -10,6 +11,11 @@ async function run() {
 
   if (!rawEmail || !password) {
     console.error('Missing ADMIN_EMAIL or ADMIN_PASSWORD in environment.');
+    process.exit(1);
+  }
+
+  if (!isStrongPassword(password)) {
+    console.error(`ADMIN_PASSWORD is too weak. ${PASSWORD_POLICY_MESSAGE}`);
     process.exit(1);
   }
 

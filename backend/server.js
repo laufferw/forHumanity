@@ -36,7 +36,17 @@ function validateRuntimeConfig() {
   }
 }
 
-app.set('trust proxy', process.env.TRUST_PROXY === 'true');
+// TRUST_PROXY is the number of reverse proxies in front of the app (the
+// bundled nginx counts as one). Trusting every hop ('true' in Express) would
+// let clients spoof X-Forwarded-For and dodge rate limiting, so a legacy
+// 'true' value is treated as a single hop.
+function parseTrustProxy(value) {
+  if (value === 'true') return 1;
+  const hops = Number(value);
+  return Number.isInteger(hops) && hops > 0 ? hops : false;
+}
+
+app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 app.disable('x-powered-by');
 
 app.use(
@@ -222,4 +232,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, connectDb, validateRuntimeConfig };
+module.exports = { app, connectDb, validateRuntimeConfig, parseTrustProxy };

@@ -2,6 +2,16 @@
 
 forHumanity is a community support app for submitting and tracking blanket delivery requests.
 
+## How it works
+
+1. **Anyone** can submit a request at `/request`: a name, phone, address or landmark, optional
+   notes, and optionally their current GPS location. No account needed.
+2. **Admins** see every request on `/admin`, filter by status, and assign each one to a volunteer.
+   The Users tab manages roles and account status (suspending someone logs them out immediately).
+3. **Volunteers** (anyone who registers) see their deliveries on `/assignments`, with tap-to-call
+   phone numbers and map links, and mark each one started and delivered.
+4. Logged-in users can track and cancel requests they submitted on `/my-requests`.
+
 ## Monorepo layout
 
 - `backend/` — Node + Express + MongoDB API
@@ -9,25 +19,25 @@ forHumanity is a community support app for submitting and tracking blanket deliv
 
 ## Quick start
 
+Requires Node 22 and a local MongoDB (for example `docker run -d -p 27017:27017 mongo:7`).
+
 ### 1) Backend
 
 ```bash
 cd backend
-cp .env.example .env 2>/dev/null || true
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-If `.env.example` does not exist inside backend, use the root `.env.example` values and create `backend/.env` manually:
+### 2) Create an admin
 
-```env
-MONGODB_URI=mongodb://localhost:27017/forHumanity
-JWT_SECRET=change-me
-PORT=5000
-CLIENT_ORIGIN=http://localhost:3000
+```bash
+cd backend
+ADMIN_EMAIL=you@example.com ADMIN_PASSWORD='Change-this-1!' npm run seed:admin
 ```
 
-### 2) Frontend
+### 3) Frontend
 
 ```bash
 cd frontend
@@ -36,7 +46,7 @@ npm install
 npm start
 ```
 
-Frontend defaults to `http://localhost:3000` and calls API at `REACT_APP_API_URL`.
+Open `http://localhost:3000`. The frontend calls the API at `REACT_APP_API_URL`.
 
 ## Scripts
 
@@ -57,22 +67,17 @@ Frontend defaults to `http://localhost:3000` and calls API at `REACT_APP_API_URL
 
 ## Bootstrap an admin account
 
-From `backend/`:
-
-```bash
-export ADMIN_EMAIL=you@example.com
-export ADMIN_PASSWORD='change-this-password'
-export ADMIN_NAME='Ops Admin'
-npm run seed:admin
-```
-
-Then log in with that account and open `/admin`.
+`npm run seed:admin` (from `backend/`, or inside the backend container) creates the admin, or resets
+an existing account's password and promotes it. It reads `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and
+optionally `ADMIN_NAME`.
 
 ## Production hardening defaults
 
 Backend now includes:
 - `helmet` security headers
 - API rate limiting (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`)
+- `TRUST_PROXY` is the number of reverse proxies in front of the backend (never "trust all"),
+  so clients can't spoof their IP to dodge rate limits
 - login lockout controls (`MAX_FAILED_LOGIN_ATTEMPTS`, `LOGIN_LOCKOUT_MINUTES`, `FAILED_ATTEMPT_TTL_MINUTES`)
 - configurable auth token TTL (`AUTH_TOKEN_TTL`)
 - stronger password policy (upper/lower/number/special)
@@ -164,13 +169,11 @@ Run smoke test manually:
 
 Set repository secrets `PRODUCTION_BASE_URL` and `METRICS_TOKEN` to enable scheduled uptime checks. Export `METRICS_TOKEN` before running the smoke test.
 
-## Current app shell
+## Routes
 
-- Home page (`/`)
-- Request form (`/request`)
-- Login/register page (`/login`)
-- My requests (`/my-requests`, requires login)
-- Admin dashboard (`/admin`, admin role only)
-  - live counts (users, total/pending/completed requests)
-  - request status updates
-  - request assignment to volunteers/admins
+- `/` — home
+- `/request` — request form (public)
+- `/login` — log in or register as a volunteer
+- `/my-requests` — requests you submitted while logged in
+- `/assignments` — deliveries assigned to you
+- `/admin` — admin only: stats, request triage and assignment, user management
