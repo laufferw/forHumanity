@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const { EMAIL_PATTERN } = require('../utils/http');
 
 const UserSchema = new mongoose.Schema(
   {
@@ -7,6 +8,7 @@ const UserSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Name is required'],
       trim: true,
+      maxlength: [100, 'Name must be at most 100 characters'],
     },
     email: {
       type: String,
@@ -14,10 +16,7 @@ const UserSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       lowercase: true,
-      match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        'Please provide a valid email address',
-      ],
+      match: [EMAIL_PATTERN, 'Please provide a valid email address'],
     },
     password: {
       type: String,

@@ -111,15 +111,21 @@ async function connectDb() {
     console.log('Connected to MongoDB successfully');
   } catch (err) {
     console.error('MongoDB connection error:', err);
+    // In production, exit so the container restarts instead of serving
+    // requests that will all fail.
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
     console.log('Continuing without MongoDB connection');
   }
 }
 
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+  const dbConnected = mongoose.connection.readyState === 1;
+  res.status(dbConnected ? 200 : 503).json({
+    status: dbConnected ? 'ok' : 'degraded',
     service: 'forHumanity-backend',
-    db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    db: dbConnected ? 'connected' : 'disconnected',
     uptime: process.uptime(),
   });
 });

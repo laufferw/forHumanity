@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Request = require('../models/Request');
 const auth = require('../middleware/auth');
+const { sendError } = require('../utils/http');
 
 const adminAuth = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
@@ -13,24 +14,26 @@ const adminAuth = (req, res, next) => {
 
 router.get('/dashboard', auth, adminAuth, async (req, res) => {
   try {
-    const [userCount, totalRequests, pendingRequests, completedRequests] = await Promise.all([
-      User.countDocuments(),
-      Request.countDocuments(),
-      Request.countDocuments({ status: 'pending' }),
-      Request.countDocuments({ status: 'completed' }),
-    ]);
+    const [userCount, totalRequests, pendingRequests, inProgressRequests, completedRequests] =
+      await Promise.all([
+        User.countDocuments(),
+        Request.countDocuments(),
+        Request.countDocuments({ status: 'pending' }),
+        Request.countDocuments({ status: 'in-progress' }),
+        Request.countDocuments({ status: 'completed' }),
+      ]);
 
     return res.json({
       users: userCount,
       requests: {
         total: totalRequests,
         pending: pendingRequests,
+        inProgress: inProgressRequests,
         completed: completedRequests,
       },
     });
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err);
   }
 });
 

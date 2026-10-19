@@ -5,6 +5,11 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const auth = require('../middleware/auth');
+const { sendError } = require('../utils/http');
+
+const VALID_ROLES = ['volunteer', 'admin'];
+const VALID_STATUSES = ['active', 'inactive', 'pending', 'suspended'];
+const NOT_FOUND = { notFoundMessage: 'User not found' };
 
 const parsePositiveInt = (value, fallback) => {
   const parsed = Number(value);
@@ -144,8 +149,7 @@ router.post('/register', async (req, res) => {
       user: serializeUser(user),
     });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -200,8 +204,7 @@ router.post('/login', async (req, res) => {
       user: serializeUser(user),
     });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -215,8 +218,7 @@ router.post('/session/refresh', auth, async (req, res) => {
     const token = issueToken(user);
     return res.json({ token, user: serializeUser(user) });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -228,8 +230,7 @@ router.get('/profile', auth, async (req, res) => {
     }
     return res.json(serializeUser(user));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -276,8 +277,7 @@ router.put('/profile', auth, async (req, res) => {
       user: serializeUser(user),
     });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -286,8 +286,7 @@ router.get('/', auth, adminAuth, async (req, res) => {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     return res.json(users.map(serializeUser));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -298,14 +297,27 @@ router.get('/volunteers', auth, adminAuth, async (req, res) => {
       .sort({ createdAt: -1 });
     return res.json(volunteers.map(serializeUser));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
 router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
     const { name, email, phone, role, status } = req.body;
+
+    if (role && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const isSelf = req.params.id === req.user.id;
+    if (isSelf && ((role && role !== 'admin') || (status && status !== 'active'))) {
+      return res
+        .status(400)
+        .json({ message: 'You cannot remove your own admin access or deactivate yourself' });
+    }
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -334,13 +346,16 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
 
     return res.json(serializeUser(user));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
 router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -349,8 +364,7 @@ router.delete('/:id', auth, adminAuth, async (req, res) => {
     await User.findByIdAndDelete(req.params.id);
     return res.json({ message: 'User removed successfully' });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 

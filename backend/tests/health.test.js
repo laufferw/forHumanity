@@ -5,10 +5,11 @@ describe('health + runtime hardening', () => {
   test('returns health payload and request id', async () => {
     const res = await request(app).get('/api/health');
 
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe('ok');
+    // No database in unit tests, so health reports degraded with a 503.
+    expect(res.status).toBe(503);
+    expect(res.body.status).toBe('degraded');
     expect(res.body.service).toBe('forHumanity-backend');
-    expect(['connected', 'disconnected']).toContain(res.body.db);
+    expect(res.body.db).toBe('disconnected');
     expect(res.headers['x-request-id']).toBeTruthy();
   });
 

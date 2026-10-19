@@ -1,7 +1,13 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const Request = require('../models/Request');
+const User = require('../models/User');
 const auth = require('../middleware/auth');
+const { sendError } = require('../utils/http');
+
+const VALID_STATUSES = ['pending', 'in-progress', 'completed', 'cancelled'];
+const NOT_FOUND = { notFoundMessage: 'Request not found' };
 
 const adminAuth = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
@@ -21,7 +27,7 @@ const normalizeLocation = ({ location, address }) => {
     if (Array.isArray(location.coordinates) && location.coordinates.length === 2) {
       normalized.coordinates = {
         type: 'Point',
-        coordinates: location.coordinates,
+        coordinates: location.coordinates.map(Number),
       };
     }
 
@@ -55,22 +61,26 @@ const applyCompletionTimestampTransition = (request, nextStatus) => {
 
 /**
  * @route   GET /api/requests
- * @desc    Get all requests (admins only)
+ * @desc    Get all requests, optionally filtered by ?status= (admins only)
  * @access  Private/Admin
  */
 router.get('/', auth, adminAuth, async (req, res) => {
   try {
-    const requests = await Request.find().sort({ createdAt: -1 });
+    const { status } = req.query;
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    const requests = await Request.find(status ? { status } : {}).sort({ createdAt: -1 });
     return res.json(requests);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err);
   }
 });
 
 /**
  * @route   GET /api/requests/user
- * @desc    Get requests for the currently authenticated user
+ * @desc    Get requests submitted by the currently authenticated user
  * @access  Private
  */
 router.get('/user', auth, async (req, res) => {
@@ -78,8 +88,21 @@ router.get('/user', auth, async (req, res) => {
     const requests = await Request.find({ userId: req.user.id }).sort({ createdAt: -1 });
     return res.json(requests);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err);
+  }
+});
+
+/**
+ * @route   GET /api/requests/assigned
+ * @desc    Get requests assigned to the currently authenticated volunteer
+ * @access  Private
+ */
+router.get('/assigned', auth, async (req, res) => {
+  try {
+    const requests = await Request.find({ assignedTo: req.user.id }).sort({ createdAt: -1 });
+    return res.json(requests);
+  } catch (err) {
+    return sendError(res, err);
   }
 });
 
@@ -93,8 +116,7 @@ router.get('/user/:userId', auth, adminAuth, async (req, res) => {
     const requests = await Request.find({ userId: req.params.userId }).sort({ createdAt: -1 });
     return res.json(requests);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err);
   }
 });
 
@@ -116,11 +138,7 @@ router.get('/:id', auth, async (req, res) => {
 
     return res.json(request);
   } catch (err) {
-    console.error(err);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ message: 'Request not found' });
-    }
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -140,7 +158,7 @@ router.post('/', auth.optional, async (req, res) => {
     const requestPayload = {
       user: {
         name,
-        email: email || 'unknown@example.com',
+        email: email || undefined,
         phone,
       },
       location: normalizeLocation({ location, address }),
@@ -153,8 +171,7 @@ router.post('/', auth.optional, async (req, res) => {
     const request = await newRequest.save();
     return res.status(201).json(request);
   } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err);
   }
 });
 
@@ -166,6 +183,19 @@ router.post('/', auth.optional, async (req, res) => {
 router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
     const { name, email, phone, location, address, notes, status, assignedTo } = req.body;
+
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status value' });
+    }
+
+    if (assignedTo) {
+      const assignee = mongoose.isValidObjectId(assignedTo)
+        ? await User.findById(assignedTo).select('role status')
+        : null;
+      if (!assignee || assignee.status !== 'active') {
+        return res.status(400).json({ message: 'Assignee must be an active user' });
+      }
+    }
 
     const request = await Request.findById(req.params.id);
     if (!request) {
@@ -185,11 +215,7 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     await request.save();
     return res.json(request);
   } catch (err) {
-    console.error(err);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ message: 'Request not found' });
-    }
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -206,8 +232,7 @@ router.put('/:id/status', auth, async (req, res) => {
       return res.status(400).json({ message: 'Status is required' });
     }
 
-    const validStatuses = ['pending', 'in-progress', 'completed', 'cancelled'];
-    if (!validStatuses.includes(status)) {
+    if (!VALID_STATUSES.includes(status)) {
       return res.status(400).json({ message: 'Invalid status value' });
     }
 
@@ -229,11 +254,7 @@ router.put('/:id/status', auth, async (req, res) => {
 
     return res.json(request);
   } catch (err) {
-    console.error(err);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ message: 'Request not found' });
-    }
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -244,19 +265,14 @@ router.put('/:id/status', auth, async (req, res) => {
  */
 router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
-    const request = await Request.findById(req.params.id);
+    const request = await Request.findByIdAndDelete(req.params.id);
     if (!request) {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    await Request.findByIdAndDelete(req.params.id);
     return res.json({ message: 'Request removed' });
   } catch (err) {
-    console.error(err);
-    if (err.kind === 'ObjectId') {
-      return res.status(404).json({ message: 'Request not found' });
-    }
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 

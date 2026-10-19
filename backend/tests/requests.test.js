@@ -48,6 +48,9 @@ MockRequest.findByIdAndDelete = Request.findByIdAndDelete;
 
 jest.mock('../models/Request', () => MockRequest);
 
+const mockUserFindById = jest.fn();
+jest.mock('../models/User', () => ({ findById: (...args) => mockUserFindById(...args) }));
+
 const request = require('supertest');
 const { app } = require('../server');
 
@@ -170,5 +173,53 @@ describe('requests routes', () => {
     expect((await put('owner-1', 'completed')).status).toBe(403);
     expect((await put('owner-1', 'cancelled')).status).toBe(200);
     expect((await put('vol-1', 'completed')).status).toBe(200);
+  });
+
+  test('lists requests assigned to the current user', async () => {
+    const sort = jest.fn().mockResolvedValue([mockRequestDoc]);
+    Request.find.mockReturnValue({ sort });
+
+    const res = await request(app).get('/api/requests/assigned').set('x-test-user-id', 'vol-1');
+
+    expect(res.status).toBe(200);
+    expect(Request.find).toHaveBeenCalledWith({ assignedTo: 'vol-1' });
+  });
+
+  test('filters the admin list by status and rejects unknown statuses', async () => {
+    Request.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
+
+    const ok = await request(app).get('/api/requests?status=pending').set('x-test-role', 'admin');
+    expect(ok.status).toBe(200);
+    expect(Request.find).toHaveBeenCalledWith({ status: 'pending' });
+
+    const bad = await request(app).get('/api/requests?status=bogus').set('x-test-role', 'admin');
+    expect(bad.status).toBe(400);
+  });
+
+  test('only assigns requests to active users', async () => {
+    const assigneeId = '507f1f77bcf86cd799439011';
+    const select = (value) => ({ select: jest.fn().mockResolvedValue(value) });
+    Request.findById.mockResolvedValue({ ...mockRequestDoc, save: jest.fn() });
+
+    mockUserFindById.mockReturnValue(select({ role: 'volunteer', status: 'suspended' }));
+    const suspended = await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: assigneeId });
+    expect(suspended.status).toBe(400);
+
+    const malformed = await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: 'not-an-id' });
+    expect(malformed.status).toBe(400);
+
+    mockUserFindById.mockReturnValue(select({ role: 'volunteer', status: 'active' }));
+    const active = await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: assigneeId });
+    expect(active.status).toBe(200);
+    expect(active.body.assignedTo).toBe(assigneeId);
   });
 });
