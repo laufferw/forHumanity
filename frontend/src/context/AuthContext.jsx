@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { authService, AUTH_EXPIRED_EVENT } from '../services/api';
 
 const AuthContext = createContext(null);

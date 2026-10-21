@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Create axios instance with base URL from environment variable
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 // Fired when the API rejects the stored token so the auth context can log out.
 export const AUTH_EXPIRED_EVENT = 'forhumanity:auth-expired';

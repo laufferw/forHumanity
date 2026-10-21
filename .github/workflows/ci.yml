@@ -65,11 +65,10 @@ jobs:
         run: npm run format:check
 
       - name: Run tests
-        run: npm run test -- --watchAll=false
+        run: npm test
 
       - name: Build
         env:
-          CI: false
           REACT_APP_API_URL: http://localhost:5000/api
         run: npm run build
 
@@ -107,7 +106,6 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         env:
-          CI: false
           REACT_APP_API_URL: http://localhost:5055/api
         run: |
           npm ci

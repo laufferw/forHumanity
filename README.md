@@ -20,7 +20,7 @@ forHumanity is a community support app for submitting and tracking blanket deliv
 ## Monorepo layout
 
 - `backend/` — Node + Express + MongoDB API
-- `frontend/` — React app
+- `frontend/` — React app (Vite)
 
 ## Quick start
 
@@ -66,9 +66,9 @@ Open `http://localhost:3000`. The frontend calls the API at `REACT_APP_API_URL`.
 
 ### Frontend
 
-- `npm start` — start dev app
-- `npm run build` — production build
-- `npm test` — tests
+- `npm start` — Vite dev server on port 3000
+- `npm run build` — production build into `frontend/build`
+- `npm test` — unit tests (Vitest)
 
 ## Browser end-to-end tests
 

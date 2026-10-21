@@ -28,6 +28,8 @@ All notable changes to forHumanity will be documented in this file.
 - Per-IP limit on public request submissions (default 10/hour) and a honeypot field
 
 ### Changed
+- Frontend builds with Vite and tests with Vitest instead of Create React App (deprecated);
+  `REACT_APP_API_URL` still works
 - Frontend validates the stored session on load and logs out when the token is rejected
 - `/api/health` returns 503 when the database is down; production exits if MongoDB is unreachable
   at startup
