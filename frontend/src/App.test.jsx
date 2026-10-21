@@ -1,39 +1,41 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, expect, test, vi } from 'vitest';
 import { AuthProvider } from './context/AuthContext';
 import App from './App';
 
-const mockApi = {
-  refreshSession: jest.fn(),
-  login: jest.fn(),
-  createRequest: jest.fn(),
-  getUserRequests: jest.fn(),
-  getAssignedRequests: jest.fn(),
-  getAllRequests: jest.fn(),
-  updateRequestStatus: jest.fn(),
-  assignRequest: jest.fn(),
-  getAllUsers: jest.fn(),
-  updateUser: jest.fn(),
-  getDashboardStats: jest.fn(),
-};
+// vi.mock is hoisted above imports, so the shared mocks must be too.
+const mockApi = vi.hoisted(() => ({
+  refreshSession: vi.fn(),
+  login: vi.fn(),
+  createRequest: vi.fn(),
+  getUserRequests: vi.fn(),
+  getAssignedRequests: vi.fn(),
+  getAllRequests: vi.fn(),
+  updateRequestStatus: vi.fn(),
+  assignRequest: vi.fn(),
+  getAllUsers: vi.fn(),
+  updateUser: vi.fn(),
+  getDashboardStats: vi.fn(),
+}));
 
-jest.mock('./services/api', () => ({
+vi.mock('./services/api', () => ({
   AUTH_EXPIRED_EVENT: 'test:auth-expired',
   authService: {
     getCurrentUser: () => {
-      const raw = global.localStorage.getItem('user');
+      const raw = globalThis.localStorage.getItem('user');
       return raw ? JSON.parse(raw) : null;
     },
-    isAuthenticated: () => !!global.localStorage.getItem('token'),
+    isAuthenticated: () => !!globalThis.localStorage.getItem('token'),
     refreshSession: (...args) => mockApi.refreshSession(...args),
     login: async (...args) => {
       const response = await mockApi.login(...args);
-      global.localStorage.setItem('token', 't');
-      global.localStorage.setItem('user', JSON.stringify(response.user));
+      globalThis.localStorage.setItem('token', 't');
+      globalThis.localStorage.setItem('user', JSON.stringify(response.user));
       return response;
     },
-    register: jest.fn(),
-    logout: () => global.localStorage.clear(),
-    updateProfile: jest.fn(),
+    register: vi.fn(),
+    logout: () => globalThis.localStorage.clear(),
+    updateProfile: vi.fn(),
   },
   requestService: {
     createRequest: (...args) => mockApi.createRequest(...args),
@@ -241,7 +243,7 @@ test('volunteer can sort assignments by distance', async () => {
     getCurrentPosition: (success) =>
       success({ coords: { longitude: -104.9903, latitude: 39.7392 } }),
   };
-  Object.defineProperty(global.navigator, 'geolocation', {
+  Object.defineProperty(globalThis.navigator, 'geolocation', {
     value: geolocation,
     configurable: true,
   });
@@ -255,6 +257,6 @@ test('volunteer can sort assignments by distance', async () => {
     expect(addresses.map((el) => el.textContent)).toEqual(['Nearby', 'Far away', 'No coordinates']);
     expect(screen.getByText(/km away/)).toBeInTheDocument();
   } finally {
-    delete global.navigator.geolocation;
+    delete globalThis.navigator.geolocation;
   }
 });
