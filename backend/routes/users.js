@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Request = require('../models/Request');
 const { canSignIn } = require('../utils/accounts');
+const notifications = require('../services/notifications');
 
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/requireAdmin');
@@ -137,6 +138,7 @@ router.post('/register', async (req, res) => {
     });
 
     await user.save();
+    notifications.notify(notifications.volunteerAwaitingApproval(user));
 
     const token = issueToken(user);
 
@@ -337,10 +339,12 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     }
     if (role) user.role = role;
     const leavingActive = status && status !== 'active' && user.status === 'active';
+    const approved = status === 'active' && user.status === 'pending';
     if (status) user.status = status;
 
     await user.save();
     if (leavingActive) await releaseOpenAssignments(user.id);
+    if (approved) notifications.notify(notifications.volunteerApproved(user));
 
     return res.json(serializeUser(user));
   } catch (err) {

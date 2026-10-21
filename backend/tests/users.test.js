@@ -43,6 +43,15 @@ const bcrypt = require('bcrypt');
 jest.mock('bcrypt', () => ({ compare: jest.fn().mockResolvedValue(true) }));
 jest.mock('jsonwebtoken', () => ({ sign: jest.fn().mockReturnValue('token-123') }));
 
+const mockNotifications = {
+  notify: jest.fn(),
+  volunteerAssigned: jest.fn(),
+  requestDelivered: jest.fn(),
+  volunteerAwaitingApproval: jest.fn(),
+  volunteerApproved: jest.fn(),
+};
+jest.mock('../services/notifications', () => mockNotifications);
+
 const request = require('supertest');
 const { app } = require('../server');
 
@@ -268,5 +277,27 @@ describe('users routes', () => {
 
     expect(res.status).toBe(200);
     expect(mockUpdateMany).toHaveBeenCalledWith(...releaseCall('v3'));
+  });
+
+  test('tells admins about a new volunteer and the volunteer when approved', async () => {
+    User.findOne.mockResolvedValue(null);
+    await request(app)
+      .post('/api/users/register')
+      .send({ name: 'New', email: 'new@test.com', password: 'Strong123!' });
+    expect(mockNotifications.volunteerAwaitingApproval).toHaveBeenCalledTimes(1);
+
+    const pending = { id: 'p1', role: 'volunteer', status: 'pending', save: jest.fn() };
+    User.findById.mockResolvedValue(pending);
+    await request(app).put('/api/users/p1').send({ status: 'active' });
+    expect(mockNotifications.volunteerApproved).toHaveBeenCalledWith(pending);
+
+    User.findById.mockResolvedValue({
+      id: 'a2',
+      role: 'volunteer',
+      status: 'active',
+      save: jest.fn(),
+    });
+    await request(app).put('/api/users/a2').send({ status: 'suspended' });
+    expect(mockNotifications.volunteerApproved).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "seed:admin": "node scripts/seedAdmin.js",
     "backup:mongo": "bash scripts/backupMongo.sh",
-    "restore:mongo": "bash scripts/restoreMongo.sh"
+    "restore:mongo": "bash scripts/restoreMongo.sh",
+    "privacy:redact": "node scripts/redactOldRequests.js"
   },
   "keywords": [],
   "author": "",
@@ -25,7 +26,8 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.11.0"
+    "mongoose": "^8.11.0",
+    "nodemailer": "^10.0.15"
   },
   "devDependencies": {
     "eslint": "^8.57.1",

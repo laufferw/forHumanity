@@ -7,6 +7,7 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/requireAdmin');
 const { sendError } = require('../utils/http');
+const notifications = require('../services/notifications');
 
 const VALID_STATUSES = ['pending', 'in-progress', 'completed', 'cancelled'];
 const NOT_FOUND = { notFoundMessage: 'Request not found' };
@@ -54,10 +55,12 @@ const isOwner = (request, user) => sameId(request.userId, user.id);
 const isAssignee = (request, user) =>
   user.status === 'active' && sameId(request.assignedTo, user.id);
 
+// Applies a status change and returns true when it newly completes the request.
 const applyCompletionTimestampTransition = (request, nextStatus) => {
   const previousStatus = request.status;
+  const newlyCompleted = nextStatus === 'completed' && previousStatus !== 'completed';
 
-  if (nextStatus === 'completed' && previousStatus !== 'completed') {
+  if (newlyCompleted) {
     request.completedAt = new Date();
   }
 
@@ -66,6 +69,7 @@ const applyCompletionTimestampTransition = (request, nextStatus) => {
   }
 
   request.status = nextStatus;
+  return newlyCompleted;
 };
 
 /**
@@ -207,9 +211,10 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
       return res.status(400).json({ message: 'Invalid status value' });
     }
 
+    let assignee = null;
     if (assignedTo) {
-      const assignee = mongoose.isValidObjectId(assignedTo)
-        ? await User.findById(assignedTo).select('role status')
+      assignee = mongoose.isValidObjectId(assignedTo)
+        ? await User.findById(assignedTo).select('name email role status')
         : null;
       if (!assignee || assignee.status !== 'active') {
         return res.status(400).json({ message: 'Assignee must be an active user' });
@@ -226,12 +231,13 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     if (phone) request.user.phone = phone;
     if (location || address) request.location = normalizeLocation({ location, address });
     if (notes !== undefined) request.notes = notes;
-    if (status) {
-      applyCompletionTimestampTransition(request, status);
-    }
+    const completed = status ? applyCompletionTimestampTransition(request, status) : false;
+    const newlyAssigned = Boolean(assignee) && !sameId(request.assignedTo, assignee.id);
     if (assignedTo !== undefined) request.assignedTo = assignedTo || undefined;
 
     await request.save();
+    if (newlyAssigned) notifications.notify(notifications.volunteerAssigned(request, assignee));
+    if (completed) notifications.notify(notifications.requestDelivered(request));
     return res.json(request);
   } catch (err) {
     return sendError(res, err, NOT_FOUND);
@@ -268,8 +274,9 @@ router.put('/:id/status', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not allowed to update this request' });
     }
 
-    applyCompletionTimestampTransition(request, status);
+    const completed = applyCompletionTimestampTransition(request, status);
     await request.save();
+    if (completed) notifications.notify(notifications.requestDelivered(request));
 
     return res.json(request);
   } catch (err) {

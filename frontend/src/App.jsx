@@ -7,6 +7,7 @@ import AssignmentsPage from './pages/AssignmentsPage';
 import AuthPage from './pages/AuthPage';
 import Home from './pages/Home';
 import MyRequestsPage from './pages/MyRequestsPage';
+import PrivacyPage from './pages/PrivacyPage';
 import RequestPage from './pages/RequestPage';
 
 function App() {
@@ -48,6 +49,7 @@ function Shell() {
           <Route path="/" element={<Home />} />
           <Route path="/request" element={<RequestPage />} />
           <Route path="/login" element={<AuthPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route
             path="/my-requests"
             element={
@@ -75,6 +77,10 @@ function Shell() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
+
+      <footer className="footer">
+        <Link to="/privacy">Privacy</Link>
+      </footer>
     </div>
   );
 }

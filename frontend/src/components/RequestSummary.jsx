@@ -8,6 +8,21 @@ import { formatDate, mapsUrl } from '../lib/requests';
  * `distance` (km) is shown when the list is sorted by distance.
  */
 export default function RequestSummary({ request, showContact = false, distance }) {
+  if (request.redactedAt) {
+    return (
+      <div className="request-summary">
+        <div className="row between wrap">
+          <strong className="muted">Details removed for privacy</strong>
+          <StatusBadge status={request.status} />
+        </div>
+        <p className="muted">Submitted {formatDate(request.createdAt)}</p>
+        {request.completedAt && (
+          <p className="muted">Delivered {formatDate(request.completedAt)}</p>
+        )}
+      </div>
+    );
+  }
+
   const map = mapsUrl(request);
 
   return (

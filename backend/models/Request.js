@@ -85,6 +85,11 @@ const RequestSchema = new Schema(
     completedAt: {
       type: Date,
     },
+
+    // Set when the retention policy removed the requester's personal details.
+    redactedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
