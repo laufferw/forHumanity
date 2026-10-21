@@ -1,7 +1,11 @@
 import { useState } from 'react';
+import NearestToggle from '../components/NearestToggle';
+import PendingNotice from '../components/PendingNotice';
 import RequestSummary from '../components/RequestSummary';
+import { useAuth } from '../context/AuthContext';
 import { isOpen } from '../lib/requests';
 import useLoader from '../lib/useLoader';
+import useNearestFirst from '../lib/useNearestFirst';
 import { requestService } from '../services/api';
 
 export default function AssignmentsPage() {
@@ -14,6 +18,7 @@ export default function AssignmentsPage() {
   } = useLoader(() => requestService.getAssignedRequests(), []);
   const [savingId, setSavingId] = useState('');
   const [showClosed, setShowClosed] = useState(false);
+  const { user } = useAuth();
 
   const setStatus = async (id, status) => {
     setSavingId(id);
@@ -29,20 +34,33 @@ export default function AssignmentsPage() {
   };
 
   const open = requests.filter(isOpen);
-  const visible = showClosed ? requests : open;
+  const nearest = useNearestFirst(showClosed ? requests : open);
+  const visible = nearest.sorted;
+
+  if (user?.status === 'pending') {
+    return (
+      <section className="card">
+        <h2>My assignments</h2>
+        <PendingNotice />
+      </section>
+    );
+  }
 
   return (
     <section className="card">
       <div className="row between wrap">
         <h2>My assignments</h2>
-        <label className="checkbox inline">
-          <input
-            type="checkbox"
-            checked={showClosed}
-            onChange={(e) => setShowClosed(e.target.checked)}
-          />
-          <span>Show delivered and cancelled</span>
-        </label>
+        <div className="row gap wrap">
+          <NearestToggle nearest={nearest} />
+          <label className="checkbox inline">
+            <input
+              type="checkbox"
+              checked={showClosed}
+              onChange={(e) => setShowClosed(e.target.checked)}
+            />
+            <span>Show delivered and cancelled</span>
+          </label>
+        </div>
       </div>
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
@@ -56,7 +74,7 @@ export default function AssignmentsPage() {
       <ul className="cards">
         {visible.map((r) => (
           <li key={r._id} className="request-card">
-            <RequestSummary request={r} showContact />
+            <RequestSummary request={r} showContact distance={nearest.distances[r._id]} />
             <div className="row gap wrap">
               {r.status === 'pending' && (
                 <button

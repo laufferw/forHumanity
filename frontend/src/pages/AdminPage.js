@@ -1,11 +1,17 @@
 import { useState } from 'react';
+import NearestToggle from '../components/NearestToggle';
 import RequestSummary from '../components/RequestSummary';
 import { useAuth } from '../context/AuthContext';
 import { STATUSES, STATUS_LABELS } from '../lib/requests';
 import useLoader from '../lib/useLoader';
+import useNearestFirst from '../lib/useNearestFirst';
 import { adminService, requestService } from '../services/api';
 
-const EMPTY_STATS = { users: 0, requests: { total: 0, pending: 0, inProgress: 0, completed: 0 } };
+const EMPTY_STATS = {
+  users: 0,
+  pendingUsers: 0,
+  requests: { total: 0, pending: 0, inProgress: 0, completed: 0 },
+};
 
 export default function AdminPage() {
   const [tab, setTab] = useState('requests');
@@ -23,6 +29,7 @@ export default function AdminPage() {
         <Stat value={s.requests.completed} label="Delivered" />
         <Stat value={s.requests.total} label="Total requests" />
         <Stat value={s.users} label="Users" />
+        <Stat value={s.pendingUsers} label="Awaiting approval" />
       </div>
 
       <div className="tabs" role="tablist">
@@ -42,7 +49,7 @@ export default function AdminPage() {
           className={tab === 'users' ? 'tab active' : 'tab'}
           onClick={() => setTab('users')}
         >
-          Users
+          Users{s.pendingUsers > 0 && ` (${s.pendingUsers} to approve)`}
         </button>
       </div>
 
@@ -79,6 +86,7 @@ function RequestsPanel({ users, onChange }) {
     [filter]
   );
   const [savingId, setSavingId] = useState('');
+  const nearest = useNearestFirst(requests);
 
   const assignable = users.filter(
     (u) => u.status === 'active' && (u.role === 'volunteer' || u.role === 'admin')
@@ -144,6 +152,7 @@ function RequestsPanel({ users, onChange }) {
         <button type="button" className="secondary" onClick={reload}>
           Refresh
         </button>
+        <NearestToggle nearest={nearest} />
       </div>
 
       {loading && <p>Loading requests...</p>}
@@ -151,9 +160,9 @@ function RequestsPanel({ users, onChange }) {
       {!loading && requests.length === 0 && <p>No requests.</p>}
 
       <ul className="cards">
-        {requests.map((r) => (
+        {nearest.sorted.map((r) => (
           <li key={r._id} className="request-card">
-            <RequestSummary request={r} showContact />
+            <RequestSummary request={r} showContact distance={nearest.distances[r._id]} />
             {r.assignedTo && (
               <p className="muted">Assigned to {nameFor(r.assignedTo) || 'a former user'}</p>
             )}
@@ -203,6 +212,10 @@ function RequestsPanel({ users, onChange }) {
   );
 }
 
+// Volunteers awaiting approval first; otherwise keep the server's order.
+const pendingFirst = (users) =>
+  [...users].sort((a, b) => (b.status === 'pending') - (a.status === 'pending'));
+
 function UsersPanel({ users, onChange }) {
   const { user: me } = useAuth();
   const { data, setData, loading, error, setError } = users;
@@ -214,6 +227,7 @@ function UsersPanel({ users, onChange }) {
     try {
       const updated = await adminService.updateUser(id, updates);
       setData((prev) => prev.map((u) => (u.id === id ? updated : u)));
+      onChange();
     } catch (err) {
       setError(err?.message || 'Failed to update user.');
     } finally {
@@ -241,7 +255,7 @@ function UsersPanel({ users, onChange }) {
       {loading && <p>Loading users...</p>}
       {error && <p className="error">{error}</p>}
       <ul className="cards">
-        {data.map((u) => {
+        {pendingFirst(data).map((u) => {
           const isMe = u.id === me?.id;
           return (
             <li key={u.id} className="request-card">
@@ -256,6 +270,15 @@ function UsersPanel({ users, onChange }) {
                 {u.phone && ` · ${u.phone}`}
               </p>
               <div className="row gap wrap">
+                {u.status === 'pending' && (
+                  <button
+                    type="button"
+                    disabled={savingId === u.id}
+                    onClick={() => update(u.id, { status: 'active' })}
+                  >
+                    Approve
+                  </button>
+                )}
                 <label className="inline">
                   Role{' '}
                   <select

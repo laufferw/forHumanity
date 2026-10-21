@@ -12,6 +12,7 @@ const mockApi = {
   updateRequestStatus: jest.fn(),
   assignRequest: jest.fn(),
   getAllUsers: jest.fn(),
+  updateUser: jest.fn(),
   getDashboardStats: jest.fn(),
 };
 
@@ -44,6 +45,7 @@ jest.mock('./services/api', () => ({
   },
   adminService: {
     getAllUsers: (...args) => mockApi.getAllUsers(...args),
+    updateUser: (...args) => mockApi.updateUser(...args),
     getDashboardStats: (...args) => mockApi.getDashboardStats(...args),
   },
 }));
@@ -119,7 +121,9 @@ test('logs out when the stored session is no longer valid', async () => {
 });
 
 test('logging in takes a volunteer to their assignments', async () => {
-  mockApi.login.mockResolvedValue({ user: { id: 'u1', name: 'Val', role: 'volunteer' } });
+  mockApi.login.mockResolvedValue({
+    user: { id: 'u1', name: 'Val', role: 'volunteer', status: 'active' },
+  });
   renderAt('/login');
 
   fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'v@example.com' } });
@@ -130,7 +134,7 @@ test('logging in takes a volunteer to their assignments', async () => {
 });
 
 test('volunteer can mark an assigned request delivered', async () => {
-  signIn({ id: 'v1', name: 'Val', role: 'volunteer' });
+  signIn({ id: 'v1', name: 'Val', role: 'volunteer', status: 'active' });
   const assigned = {
     _id: 'r1',
     status: 'in-progress',
@@ -153,7 +157,7 @@ test('volunteer can mark an assigned request delivered', async () => {
 });
 
 test('admin sees stats and can assign a request to a volunteer', async () => {
-  signIn({ id: 'a1', name: 'Admin', role: 'admin' });
+  signIn({ id: 'a1', name: 'Admin', role: 'admin', status: 'active' });
   mockApi.getDashboardStats.mockResolvedValue({
     users: 2,
     requests: { total: 1, pending: 1, inProgress: 0, completed: 0 },
@@ -180,4 +184,77 @@ test('admin sees stats and can assign a request to a volunteer', async () => {
 
   await waitFor(() => expect(mockApi.assignRequest).toHaveBeenCalledWith('r1', 'v1'));
   expect(await screen.findByText('Assigned to Val')).toBeInTheDocument();
+});
+
+test('pending volunteers see an approval notice instead of assignments', async () => {
+  signIn({ id: 'p1', name: 'Pat', role: 'volunteer', status: 'pending' });
+  renderAt('/assignments');
+
+  expect(await screen.findByText(/admin will review your account/i)).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Assignments' })).not.toBeInTheDocument();
+});
+
+test('admin can approve a pending volunteer', async () => {
+  signIn({ id: 'a1', name: 'Admin', role: 'admin', status: 'active' });
+  const pat = {
+    id: 'p1',
+    name: 'Pat',
+    email: 'pat@example.com',
+    role: 'volunteer',
+    status: 'pending',
+  };
+  mockApi.getAllUsers.mockResolvedValue([
+    { id: 'a1', name: 'Admin', email: 'a@example.com', role: 'admin', status: 'active' },
+    pat,
+  ]);
+  mockApi.getDashboardStats.mockResolvedValue({
+    users: 2,
+    pendingUsers: 1,
+    requests: { total: 0, pending: 0, inProgress: 0, completed: 0 },
+  });
+  mockApi.updateUser.mockResolvedValue({ ...pat, status: 'active' });
+
+  renderAt('/admin');
+  fireEvent.click(await screen.findByRole('tab', { name: /Users \(1 to approve\)/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+
+  await waitFor(() => expect(mockApi.updateUser).toHaveBeenCalledWith('p1', { status: 'active' }));
+  await waitFor(() =>
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+  );
+});
+
+test('volunteer can sort assignments by distance', async () => {
+  signIn({ id: 'v1', name: 'Val', role: 'volunteer', status: 'active' });
+  const at = (id, address, coordinates) => ({
+    _id: id,
+    status: 'pending',
+    user: { name: 'S', phone: '1' },
+    location: { address, ...(coordinates && { coordinates: { type: 'Point', coordinates } }) },
+  });
+  mockApi.getAssignedRequests.mockResolvedValue([
+    at('far', 'Far away', [-104.0, 39.7]),
+    at('none', 'No coordinates'),
+    at('near', 'Nearby', [-104.99, 39.74]),
+  ]);
+  const geolocation = {
+    getCurrentPosition: (success) =>
+      success({ coords: { longitude: -104.9903, latitude: 39.7392 } }),
+  };
+  Object.defineProperty(global.navigator, 'geolocation', {
+    value: geolocation,
+    configurable: true,
+  });
+
+  try {
+    renderAt('/assignments');
+    await screen.findByText('Far away');
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by distance from me' }));
+
+    const addresses = await screen.findAllByText(/Far away|No coordinates|Nearby/);
+    expect(addresses.map((el) => el.textContent)).toEqual(['Nearby', 'Far away', 'No coordinates']);
+    expect(screen.getByText(/km away/)).toBeInTheDocument();
+  } finally {
+    delete global.navigator.geolocation;
+  }
 });

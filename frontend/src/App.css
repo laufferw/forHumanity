@@ -285,7 +285,7 @@ button.link {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 10px;
   margin: 12px 0 18px;
 }
@@ -319,4 +319,21 @@ button.link {
   .card {
     padding: 16px;
   }
+}
+
+.notice {
+  background: #eef4ff;
+  border: 1px solid #cfdcff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #24408a;
+}
+
+/* Off-screen rather than display:none, which some bots skip. */
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }

@@ -21,6 +21,7 @@ function Shell() {
   const { user, logout, isAuthenticated, getUserRole } = useAuth();
   const authed = isAuthenticated();
   const isAdmin = getUserRole() === 'admin';
+  const isApproved = user?.status === 'active';
 
   return (
     <div className="app-shell">
@@ -31,7 +32,7 @@ function Shell() {
         <nav>
           <NavLink to="/request">Request Help</NavLink>
           {authed && <NavLink to="/my-requests">My Requests</NavLink>}
-          {authed && <NavLink to="/assignments">Assignments</NavLink>}
+          {authed && isApproved && <NavLink to="/assignments">Assignments</NavLink>}
           {authed && isAdmin && <NavLink to="/admin">Admin</NavLink>}
           {!authed && <NavLink to="/login">Login</NavLink>}
         </nav>

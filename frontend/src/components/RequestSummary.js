@@ -1,11 +1,13 @@
 import StatusBadge from './StatusBadge';
+import { formatDistance } from '../lib/geo';
 import { formatDate, mapsUrl } from '../lib/requests';
 
 /**
  * Shared body for a request card. `showContact` reveals the requester's
  * name and phone, which only admins and the assigned volunteer should see.
+ * `distance` (km) is shown when the list is sorted by distance.
  */
-export default function RequestSummary({ request, showContact = false }) {
+export default function RequestSummary({ request, showContact = false, distance }) {
   const map = mapsUrl(request);
 
   return (
@@ -19,6 +21,7 @@ export default function RequestSummary({ request, showContact = false }) {
           Open in maps
         </a>
       )}
+      {distance !== undefined && <span className="muted"> · {formatDistance(distance)} away</span>}
       {showContact && (
         <p className="muted">
           {request.user?.name || 'Unknown'}

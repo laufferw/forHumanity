@@ -9,6 +9,7 @@ const emptyForm = (user) => ({
   phone: user?.phone || '',
   address: '',
   notes: '',
+  website: '',
 });
 
 export default function RequestPage() {
@@ -113,6 +114,18 @@ export default function RequestPage() {
             maxLength={1000}
           />
         </label>
+        {/* Honeypot for bots: hidden from people and assistive tech. */}
+        <div className="honeypot" aria-hidden="true">
+          <label>
+            Website
+            <input
+              tabIndex={-1}
+              autoComplete="off"
+              value={form.website}
+              onChange={set('website')}
+            />
+          </label>
+        </div>
         <label className="checkbox">
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span>

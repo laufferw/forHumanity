@@ -3,8 +3,11 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Request = require('../models/Request');
+const { canSignIn } = require('../utils/accounts');
 
 const auth = require('../middleware/auth');
+const adminAuth = require('../middleware/requireAdmin');
 const { sendError } = require('../utils/http');
 const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require('../utils/password');
 
@@ -24,17 +27,19 @@ const TOKEN_TTL = process.env.AUTH_TOKEN_TTL || '1d';
 
 const loginAttempts = new Map();
 
-const adminAuth = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    return next();
-  }
-  return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
-};
-
 const normalizeEmail = (email) =>
   String(email || '')
     .trim()
     .toLowerCase();
+
+// Puts a user's open assignments back in the queue so they don't stall when
+// the user is deleted or can no longer take deliveries. Delivered and
+// cancelled requests keep their assignee as history.
+const releaseOpenAssignments = (userId) =>
+  Request.updateMany(
+    { assignedTo: userId, status: { $in: ['pending', 'in-progress'] } },
+    { $unset: { assignedTo: 1 }, $set: { status: 'pending' } }
+  );
 
 const issueToken = (user) =>
   jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
@@ -126,7 +131,9 @@ router.post('/register', async (req, res) => {
         phone,
       },
       role: 'volunteer',
-      status: 'active',
+      // New volunteers wait for an admin to approve them before they can be
+      // assigned deliveries (and see requesters' contact details).
+      status: 'pending',
     });
 
     await user.save();
@@ -179,7 +186,7 @@ router.post('/login', async (req, res) => {
 
     // Checked only after the password matches, so account status can't be
     // used to discover which emails are registered.
-    if (user.status !== 'active') {
+    if (!canSignIn(user.status)) {
       return res
         .status(400)
         .json({ message: 'Account is not active. Please contact administrator.' });
@@ -200,7 +207,7 @@ router.post('/login', async (req, res) => {
 router.post('/session/refresh', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user || user.status !== 'active') {
+    if (!user || !canSignIn(user.status)) {
       return res.status(401).json({ message: 'Session is no longer valid.' });
     }
 
@@ -329,9 +336,11 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
       };
     }
     if (role) user.role = role;
+    const leavingActive = status && status !== 'active' && user.status === 'active';
     if (status) user.status = status;
 
     await user.save();
+    if (leavingActive) await releaseOpenAssignments(user.id);
 
     return res.json(serializeUser(user));
   } catch (err) {
@@ -351,6 +360,7 @@ router.delete('/:id', auth, adminAuth, async (req, res) => {
     }
 
     await User.findByIdAndDelete(req.params.id);
+    await releaseOpenAssignments(req.params.id);
     return res.json({ message: 'User removed successfully' });
   } catch (err) {
     return sendError(res, err, NOT_FOUND);
