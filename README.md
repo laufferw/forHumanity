@@ -70,6 +70,23 @@ Open `http://localhost:3000`. The frontend calls the API at `REACT_APP_API_URL`.
 - `npm run build` — production build
 - `npm test` — tests
 
+## Browser end-to-end tests
+
+`e2e/` drives the real app in Chromium (Playwright): the backend against a throwaway
+`forHumanity-e2e` database, and the production frontend build. CI runs it on every PR.
+
+```bash
+docker run -d -p 27017:27017 mongo:7          # if MongoDB isn't already running
+(cd frontend && REACT_APP_API_URL=http://localhost:5055/api npm run build)
+cd e2e
+npm install
+npx playwright install chromium               # first time only
+npm test
+```
+
+The suite resets the `forHumanity-e2e` database and seeds its own admin before each run, and
+starts the backend on port 5055 and the frontend on port 3055.
+
 ## Bootstrap an admin account
 
 `npm run seed:admin` (from `backend/`, or inside the backend container) creates the admin, or resets
