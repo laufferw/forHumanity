@@ -227,9 +227,21 @@ if (require.main === module) {
   console.log(`Attempting to start server on port ${PORT}`);
   validateRuntimeConfig();
   connectDb().finally(() => {
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
       console.log(`Server successfully running on port ${PORT}`);
     });
+
+    // As a container's main process, node ignores SIGTERM unless handled, so
+    // `docker stop` would wait out its timeout and kill in-flight requests.
+    const shutdown = (signal) => {
+      console.log(`${signal} received, shutting down`);
+      server.close(() => {
+        mongoose.connection.close().finally(() => process.exit(0));
+      });
+      setTimeout(() => process.exit(1), 10000).unref();
+    };
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
+    process.once('SIGINT', () => shutdown('SIGINT'));
     if (process.env.RETENTION_SCHEDULE !== 'off') scheduleRedaction();
   });
 }

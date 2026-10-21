@@ -158,27 +158,12 @@ docker compose -f docker-compose.staging.yml exec backend npm run seed:admin
 docker compose -f docker-compose.staging.yml down
 ```
 
-## Production deployment (Docker Compose)
+## Production deployment
 
-1. Copy env file:
-
-```bash
-cp .env.production.example .env.production
-```
-
-2. Start production stack:
-
-```bash
-docker compose -f docker-compose.production.yml up -d --build
-```
-
-3. Seed admin user:
-
-```bash
-docker compose -f docker-compose.production.yml exec backend npm run seed:admin
-```
-
-4. Use reverse proxy sample at `deploy/nginx.reverse-proxy.example.conf`
+See **[docs/DEPLOY.md](docs/DEPLOY.md)**: a single server with Docker Compose behind nginx with
+Let's Encrypt TLS, using images that CI publishes to GitHub Container Registry on every push to
+`main` (`ghcr.io/laufferw/forhumanity-backend` and `-frontend`). It also covers backups,
+updates, and rollback.
 
 ## Ops
 

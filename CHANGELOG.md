@@ -14,6 +14,8 @@ All notable changes to forHumanity will be documented in this file.
 - Upgrade bcrypt to v6 and override qs to clear production `npm audit` findings
 
 ### Added
+- Docker images published to GHCR on every push to `main` (`latest` and `sha-<commit>` tags), and
+  a deployment guide (`docs/DEPLOY.md`)
 - Email notifications over SMTP (new volunteer to admins, approval and assignment to volunteers,
   delivery to requesters); off unless `SMTP_HOST` is set
 - Privacy page linked from the request form, and automatic removal of requesters' personal
@@ -43,6 +45,10 @@ All notable changes to forHumanity will be documented in this file.
   unassigned pending queue; delivered and cancelled requests keep their history
 
 ### Fixed
+- Production compose published the frontend on host port 80, which conflicted with the host TLS
+  proxy and let clients bypass it (and spoof `X-Forwarded-For`); it now binds `127.0.0.1:8080`
+- The backend ignored `SIGTERM`, so `docker stop` waited 10s and killed in-flight requests; it now
+  shuts down gracefully and runs as the unprivileged `node` user
 - Submitting a request without coordinates failed with a geo-index error
 - Validation errors returned 500 instead of 400 with the reason
 - Emails with TLDs longer than three letters (e.g. `.info`) were rejected

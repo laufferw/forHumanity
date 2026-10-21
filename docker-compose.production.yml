@@ -11,6 +11,8 @@ services:
       retries: 5
 
   backend:
+    # Pulled from GHCR by `docker compose pull`; `up --build` builds locally instead.
+    image: ${BACKEND_IMAGE:-ghcr.io/laufferw/forhumanity-backend:latest}
     build:
       context: ./backend
     restart: unless-stopped
@@ -29,13 +31,17 @@ services:
       retries: 5
 
   frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/laufferw/forhumanity-frontend:latest}
     build:
       context: ./frontend
       args:
         REACT_APP_API_URL: /api
     restart: unless-stopped
+    # Only reachable from this host: the TLS reverse proxy (deploy/) is the
+    # public entry point. Exposing this publicly would let clients bypass TLS
+    # and spoof X-Forwarded-For past TRUST_PROXY.
     ports:
-      - '80:80'
+      - '127.0.0.1:8080:80'
     depends_on:
       backend:
         condition: service_healthy
