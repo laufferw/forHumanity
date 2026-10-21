@@ -55,21 +55,37 @@ const isOwner = (request, user) => sameId(request.userId, user.id);
 const isAssignee = (request, user) =>
   user.status === 'active' && sameId(request.assignedTo, user.id);
 
-// Applies a status change and returns true when it newly completes the request.
-const applyCompletionTimestampTransition = (request, nextStatus) => {
+/**
+ * Applies a status change, keeping completedAt and cancelledAt in step with
+ * it. Returns true when the requester should be emailed that the request was
+ * delivered: only the first time it completes, even if it's later reopened
+ * and completed again.
+ */
+const applyStatusTransition = (request, nextStatus) => {
   const previousStatus = request.status;
+  const now = new Date();
   const newlyCompleted = nextStatus === 'completed' && previousStatus !== 'completed';
 
   if (newlyCompleted) {
-    request.completedAt = new Date();
+    request.completedAt = now;
   }
-
   if (nextStatus !== 'completed' && previousStatus === 'completed') {
     request.completedAt = undefined;
   }
 
+  // Retention counts from cancellation, not from later edits (updatedAt).
+  if (nextStatus === 'cancelled' && previousStatus !== 'cancelled') {
+    request.cancelledAt = now;
+  }
+  if (nextStatus !== 'cancelled' && previousStatus === 'cancelled') {
+    request.cancelledAt = undefined;
+  }
+
   request.status = nextStatus;
-  return newlyCompleted;
+
+  const notifyDelivered = newlyCompleted && !request.deliveryNotifiedAt;
+  if (notifyDelivered) request.deliveryNotifiedAt = now;
+  return notifyDelivered;
 };
 
 /**
@@ -231,13 +247,13 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     if (phone) request.user.phone = phone;
     if (location || address) request.location = normalizeLocation({ location, address });
     if (notes !== undefined) request.notes = notes;
-    const completed = status ? applyCompletionTimestampTransition(request, status) : false;
+    const notifyDelivered = status ? applyStatusTransition(request, status) : false;
     const newlyAssigned = Boolean(assignee) && !sameId(request.assignedTo, assignee.id);
     if (assignedTo !== undefined) request.assignedTo = assignedTo || undefined;
 
     await request.save();
     if (newlyAssigned) notifications.notify(notifications.volunteerAssigned(request, assignee));
-    if (completed) notifications.notify(notifications.requestDelivered(request));
+    if (notifyDelivered) notifications.notify(notifications.requestDelivered(request));
     return res.json(request);
   } catch (err) {
     return sendError(res, err, NOT_FOUND);
@@ -274,9 +290,9 @@ router.put('/:id/status', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not allowed to update this request' });
     }
 
-    const completed = applyCompletionTimestampTransition(request, status);
+    const notifyDelivered = applyStatusTransition(request, status);
     await request.save();
-    if (completed) notifications.notify(notifications.requestDelivered(request));
+    if (notifyDelivered) notifications.notify(notifications.requestDelivered(request));
 
     return res.json(request);
   } catch (err) {
