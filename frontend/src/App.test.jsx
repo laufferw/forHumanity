@@ -260,3 +260,29 @@ test('volunteer can sort assignments by distance', async () => {
     delete globalThis.navigator.geolocation;
   }
 });
+
+test('the request form links to the privacy page', async () => {
+  renderAt('/request');
+  fireEvent.click(screen.getByRole('link', { name: 'privacy' }));
+  expect(await screen.findByRole('heading', { name: 'How long we keep it' })).toBeInTheDocument();
+});
+
+test('redacted requests show no personal details', async () => {
+  signIn({ id: 'u1', name: 'Rae', role: 'volunteer', status: 'active' });
+  mockApi.getUserRequests.mockResolvedValue([
+    {
+      _id: 'r1',
+      status: 'completed',
+      redactedAt: '2026-06-01T00:00:00Z',
+      completedAt: '2026-02-01T00:00:00Z',
+      user: { name: 'Redacted', phone: 'Redacted' },
+      location: { address: 'Redacted' },
+    },
+  ]);
+
+  renderAt('/my-requests');
+
+  expect(await screen.findByText('Details removed for privacy')).toBeInTheDocument();
+  expect(screen.queryByText('Redacted')).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Open in maps' })).not.toBeInTheDocument();
+});

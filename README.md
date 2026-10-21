@@ -110,6 +110,26 @@ Backend now includes:
 - metrics endpoint: `GET /api/metrics` (requires `x-metrics-token: $METRICS_TOKEN`; disabled in production when unset)
 - request and error correlation IDs (`x-request-id`, `errorId`)
 
+## Email notifications
+
+Set `SMTP_HOST` (plus `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`) to send
+plain-text emails through any SMTP provider (Resend, Postmark, SendGrid, Mailgun, Gmail, ...):
+
+- admins: a new volunteer is awaiting approval
+- volunteers: their account was approved; a delivery was assigned to them
+- requesters (if they gave an email): their blanket was delivered
+
+`APP_URL` is the public URL used for links. Emails never include requesters' phone numbers.
+Without `SMTP_HOST`, notifications are skipped. A failed send is logged and never fails the action.
+
+## Privacy and data retention
+
+The request form links to `/privacy`, which explains what is collected and who sees it. Once a
+request has been delivered or cancelled for `RETENTION_DAYS` (default 90), the backend removes the
+requester's name, phone, email, notes, address, and location, keeping only status and dates. It
+runs at startup and daily (`RETENTION_SCHEDULE=off` disables that), or on demand with
+`npm run privacy:redact` from `backend/`.
+
 ## Staging deployment (Docker Compose)
 
 1. Copy env file:

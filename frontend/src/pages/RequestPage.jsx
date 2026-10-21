@@ -130,7 +130,8 @@ export default function RequestPage() {
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
           <span>
             I understand these details will be shared with forHumanity coordinators and the
-            volunteer assigned to this delivery, and used only to deliver this request.
+            volunteer assigned to this delivery, and used only to deliver this request (
+            <Link to="/privacy">privacy</Link>).
           </span>
         </label>
         <button type="submit" disabled={!consent || submitting}>

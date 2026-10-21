@@ -53,6 +53,15 @@ jest.mock('../models/Request', () => MockRequest);
 const mockUserFindById = jest.fn();
 jest.mock('../models/User', () => ({ findById: (...args) => mockUserFindById(...args) }));
 
+const mockNotifications = {
+  notify: jest.fn(),
+  volunteerAssigned: jest.fn(),
+  requestDelivered: jest.fn(),
+  volunteerAwaitingApproval: jest.fn(),
+  volunteerApproved: jest.fn(),
+};
+jest.mock('../services/notifications', () => mockNotifications);
+
 const request = require('supertest');
 const { app } = require('../server');
 
@@ -264,5 +273,73 @@ describe('requests routes', () => {
       request(app).put('/api/requests/req-1/status').send({ status: 'in-progress' })
     );
     expect(reopen.status).toBe(403);
+  });
+
+  test('emails the volunteer on a new assignment, not on re-saving the same one', async () => {
+    const volunteerId = '507f1f77bcf86cd799439011';
+    mockUserFindById.mockReturnValue({
+      select: jest.fn().mockResolvedValue({ id: volunteerId, status: 'active', email: 'v@x.org' }),
+    });
+
+    Request.findById.mockResolvedValue({ ...mockRequestDoc, save: jest.fn() });
+    await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: volunteerId });
+    expect(mockNotifications.volunteerAssigned).toHaveBeenCalledTimes(1);
+
+    Request.findById.mockResolvedValue({
+      ...mockRequestDoc,
+      assignedTo: volunteerId,
+      save: jest.fn(),
+    });
+    await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: volunteerId });
+    expect(mockNotifications.volunteerAssigned).toHaveBeenCalledTimes(1);
+  });
+
+  test('emails the requester once when their request is delivered', async () => {
+    Request.findById.mockResolvedValue({ ...mockRequestDoc, save: jest.fn() });
+    await request(app)
+      .put('/api/requests/req-1/status')
+      .set('x-test-role', 'admin')
+      .send({ status: 'completed' });
+    expect(mockNotifications.requestDelivered).toHaveBeenCalledTimes(1);
+
+    Request.findById.mockResolvedValue({ ...mockRequestDoc, status: 'completed', save: jest.fn() });
+    await request(app)
+      .put('/api/requests/req-1/status')
+      .set('x-test-role', 'admin')
+      .send({ status: 'completed' });
+    expect(mockNotifications.requestDelivered).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not email the requester again when a delivered request is reopened and re-completed', async () => {
+    const doc = { ...mockRequestDoc, status: 'pending', save: jest.fn() };
+    Request.findById.mockResolvedValue(doc);
+    const setStatus = (status) =>
+      request(app).put('/api/requests/req-1/status').set('x-test-role', 'admin').send({ status });
+
+    await setStatus('completed');
+    await setStatus('in-progress');
+    await setStatus('completed');
+
+    expect(doc.deliveryNotifiedAt).toBeInstanceOf(Date);
+    expect(mockNotifications.requestDelivered).toHaveBeenCalledTimes(1);
+  });
+
+  test('records when a request was cancelled and clears it on reopen', async () => {
+    const doc = { ...mockRequestDoc, status: 'pending', save: jest.fn() };
+    Request.findById.mockResolvedValue(doc);
+    const setStatus = (status) =>
+      request(app).put('/api/requests/req-1/status').set('x-test-role', 'admin').send({ status });
+
+    await setStatus('cancelled');
+    expect(doc.cancelledAt).toBeInstanceOf(Date);
+
+    await setStatus('pending');
+    expect(doc.cancelledAt).toBeUndefined();
   });
 });

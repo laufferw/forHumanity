@@ -14,6 +14,10 @@ All notable changes to forHumanity will be documented in this file.
 - Upgrade bcrypt to v6 and override qs to clear production `npm audit` findings
 
 ### Added
+- Email notifications over SMTP (new volunteer to admins, approval and assignment to volunteers,
+  delivery to requesters); off unless `SMTP_HOST` is set
+- Privacy page linked from the request form, and automatic removal of requesters' personal
+  details 90 days (`RETENTION_DAYS`) after a request is delivered or cancelled
 - Volunteer Assignments page: start and complete deliveries, tap-to-call, map links
 - Admin dashboard: status filter, full request list with assign/status/delete, and a Users tab
   for roles, account status, and removal

@@ -7,6 +7,7 @@ const User = require('../models/User');
 const auth = require('../middleware/auth');
 const adminAuth = require('../middleware/requireAdmin');
 const { sendError } = require('../utils/http');
+const notifications = require('../services/notifications');
 
 const VALID_STATUSES = ['pending', 'in-progress', 'completed', 'cancelled'];
 const NOT_FOUND = { notFoundMessage: 'Request not found' };
@@ -54,18 +55,37 @@ const isOwner = (request, user) => sameId(request.userId, user.id);
 const isAssignee = (request, user) =>
   user.status === 'active' && sameId(request.assignedTo, user.id);
 
-const applyCompletionTimestampTransition = (request, nextStatus) => {
+/**
+ * Applies a status change, keeping completedAt and cancelledAt in step with
+ * it. Returns true when the requester should be emailed that the request was
+ * delivered: only the first time it completes, even if it's later reopened
+ * and completed again.
+ */
+const applyStatusTransition = (request, nextStatus) => {
   const previousStatus = request.status;
+  const now = new Date();
+  const newlyCompleted = nextStatus === 'completed' && previousStatus !== 'completed';
 
-  if (nextStatus === 'completed' && previousStatus !== 'completed') {
-    request.completedAt = new Date();
+  if (newlyCompleted) {
+    request.completedAt = now;
   }
-
   if (nextStatus !== 'completed' && previousStatus === 'completed') {
     request.completedAt = undefined;
   }
 
+  // Retention counts from cancellation, not from later edits (updatedAt).
+  if (nextStatus === 'cancelled' && previousStatus !== 'cancelled') {
+    request.cancelledAt = now;
+  }
+  if (nextStatus !== 'cancelled' && previousStatus === 'cancelled') {
+    request.cancelledAt = undefined;
+  }
+
   request.status = nextStatus;
+
+  const notifyDelivered = newlyCompleted && !request.deliveryNotifiedAt;
+  if (notifyDelivered) request.deliveryNotifiedAt = now;
+  return notifyDelivered;
 };
 
 /**
@@ -207,9 +227,10 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
       return res.status(400).json({ message: 'Invalid status value' });
     }
 
+    let assignee = null;
     if (assignedTo) {
-      const assignee = mongoose.isValidObjectId(assignedTo)
-        ? await User.findById(assignedTo).select('role status')
+      assignee = mongoose.isValidObjectId(assignedTo)
+        ? await User.findById(assignedTo).select('name email role status')
         : null;
       if (!assignee || assignee.status !== 'active') {
         return res.status(400).json({ message: 'Assignee must be an active user' });
@@ -226,12 +247,13 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
     if (phone) request.user.phone = phone;
     if (location || address) request.location = normalizeLocation({ location, address });
     if (notes !== undefined) request.notes = notes;
-    if (status) {
-      applyCompletionTimestampTransition(request, status);
-    }
+    const notifyDelivered = status ? applyStatusTransition(request, status) : false;
+    const newlyAssigned = Boolean(assignee) && !sameId(request.assignedTo, assignee.id);
     if (assignedTo !== undefined) request.assignedTo = assignedTo || undefined;
 
     await request.save();
+    if (newlyAssigned) notifications.notify(notifications.volunteerAssigned(request, assignee));
+    if (notifyDelivered) notifications.notify(notifications.requestDelivered(request));
     return res.json(request);
   } catch (err) {
     return sendError(res, err, NOT_FOUND);
@@ -268,8 +290,9 @@ router.put('/:id/status', auth, async (req, res) => {
       return res.status(403).json({ message: 'Not allowed to update this request' });
     }
 
-    applyCompletionTimestampTransition(request, status);
+    const notifyDelivered = applyStatusTransition(request, status);
     await request.save();
+    if (notifyDelivered) notifications.notify(notifications.requestDelivered(request));
 
     return res.json(request);
   } catch (err) {

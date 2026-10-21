@@ -9,6 +9,7 @@ require('dotenv').config();
 const userRoutes = require('./routes/users');
 const requestRoutes = require('./routes/requests');
 const adminRoutes = require('./routes/admin');
+const { scheduleRedaction } = require('./services/retention');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -229,6 +230,7 @@ if (require.main === module) {
     app.listen(PORT, () => {
       console.log(`Server successfully running on port ${PORT}`);
     });
+    if (process.env.RETENTION_SCHEDULE !== 'off') scheduleRedaction();
   });
 }
 
