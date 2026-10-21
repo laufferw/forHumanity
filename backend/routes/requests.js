@@ -1,20 +1,25 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const mongoose = require('mongoose');
 const router = express.Router();
 const Request = require('../models/Request');
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const adminAuth = require('../middleware/requireAdmin');
 const { sendError } = require('../utils/http');
 
 const VALID_STATUSES = ['pending', 'in-progress', 'completed', 'cancelled'];
 const NOT_FOUND = { notFoundMessage: 'Request not found' };
 
-const adminAuth = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    return next();
-  }
-  return res.status(403).json({ message: 'Access denied. Admin privileges required.' });
-};
+// Public submissions get a much tighter per-IP limit than the general API
+// limiter, since the form needs no account.
+const submitLimiter = rateLimit({
+  windowMs: Number(process.env.REQUEST_RATE_LIMIT_WINDOW_MS || 60 * 60 * 1000),
+  max: Number(process.env.REQUEST_RATE_LIMIT_MAX || 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests submitted. Please try again later.' },
+});
 
 const normalizeLocation = ({ location, address }) => {
   // Support legacy payloads where location is a free-text field
@@ -41,9 +46,13 @@ const normalizeLocation = ({ location, address }) => {
 
 const sameId = (a, b) => Boolean(a) && Boolean(b) && String(a) === String(b);
 
-const isAdmin = (user) => user.role === 'admin';
+const isAdmin = (user) => user.role === 'admin' && user.status === 'active';
 const isOwner = (request, user) => sameId(request.userId, user.id);
-const isAssignee = (request, user) => sameId(request.assignedTo, user.id);
+// Only active volunteers act as assignees. A volunteer moved back to pending
+// keeps their delivered/cancelled history attached, but must not regain access
+// to it (or reopen it) until approved again.
+const isAssignee = (request, user) =>
+  user.status === 'active' && sameId(request.assignedTo, user.id);
 
 const applyCompletionTimestampTransition = (request, nextStatus) => {
   const previousStatus = request.status;
@@ -99,6 +108,10 @@ router.get('/user', auth, async (req, res) => {
  */
 router.get('/assigned', auth, async (req, res) => {
   try {
+    if (req.user.status !== 'active') {
+      return res.json([]);
+    }
+
     const requests = await Request.find({ assignedTo: req.user.id }).sort({ createdAt: -1 });
     return res.json(requests);
   } catch (err) {
@@ -147,9 +160,15 @@ router.get('/:id', auth, async (req, res) => {
  * @desc    Create a new request
  * @access  Public (linked to the caller's account when a valid token is sent)
  */
-router.post('/', auth.optional, async (req, res) => {
+router.post('/', submitLimiter, auth.optional, async (req, res) => {
   try {
-    const { name, email, phone, location, address, notes } = req.body;
+    const { name, email, phone, location, address, notes, website } = req.body;
+
+    // Honeypot: `website` is a field people never see. Bots that fill every
+    // input get a normal-looking response but nothing is saved.
+    if (website) {
+      return res.status(201).json({ status: 'pending' });
+    }
 
     if (!name || !phone || (!location && !address)) {
       return res.status(400).json({ message: 'Please provide name, phone, and location/address' });

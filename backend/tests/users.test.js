@@ -5,6 +5,7 @@ jest.mock('../middleware/auth', () => {
     req.user = {
       id: req.header('x-test-user-id') || 'admin-1',
       role: req.header('x-test-role') || 'admin',
+      status: req.header('x-test-status') || 'active',
     };
     next();
   };
@@ -35,6 +36,9 @@ MockUser.find = User.find;
 MockUser.findByIdAndDelete = User.findByIdAndDelete;
 
 jest.mock('../models/User', () => MockUser);
+
+const mockUpdateMany = jest.fn().mockResolvedValue({ modifiedCount: 0 });
+jest.mock('../models/Request', () => ({ updateMany: (...args) => mockUpdateMany(...args) }));
 const bcrypt = require('bcrypt');
 jest.mock('bcrypt', () => ({ compare: jest.fn().mockResolvedValue(true) }));
 jest.mock('jsonwebtoken', () => ({ sign: jest.fn().mockReturnValue('token-123') }));
@@ -60,6 +64,7 @@ describe('users routes', () => {
     expect(res.status).toBe(201);
     expect(res.body.token).toBe('token-123');
     expect(res.body.user.email).toBe('william@test.com');
+    expect(res.body.user.status).toBe('pending');
   });
 
   test('prevents duplicate registration', async () => {
@@ -194,5 +199,74 @@ describe('users routes', () => {
     } finally {
       mockSaveError = null;
     }
+  });
+
+  const loginAs = (status) => {
+    User.findOne.mockResolvedValue({
+      id: 'u9',
+      email: `${status}@test.com`,
+      password: 'hashed',
+      role: 'volunteer',
+      status,
+      contactInfo: {},
+    });
+    bcrypt.compare.mockResolvedValue(true);
+    return request(app)
+      .post('/api/users/login')
+      .send({ email: `${status}@test.com`, password: 'Right123!' });
+  };
+
+  test('pending volunteers can log in; suspended ones cannot', async () => {
+    const pending = await loginAs('pending');
+    expect(pending.status).toBe(200);
+    expect(pending.body.user.status).toBe('pending');
+
+    const suspended = await loginAs('suspended');
+    expect(suspended.status).toBe(400);
+    expect(suspended.body.message).toMatch(/not active/i);
+  });
+
+  const releaseCall = (userId) => [
+    { assignedTo: userId, status: { $in: ['pending', 'in-progress'] } },
+    { $unset: { assignedTo: 1 }, $set: { status: 'pending' } },
+  ];
+
+  test('suspending an active volunteer releases their open assignments', async () => {
+    User.findById.mockResolvedValue({
+      id: 'v1',
+      role: 'volunteer',
+      status: 'active',
+      save: jest.fn().mockResolvedValue(true),
+    });
+
+    const res = await request(app).put('/api/users/v1').send({ status: 'suspended' });
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateMany).toHaveBeenCalledWith(...releaseCall('v1'));
+  });
+
+  test('approving a pending volunteer releases nothing', async () => {
+    User.findById.mockResolvedValue({
+      id: 'v2',
+      role: 'volunteer',
+      status: 'pending',
+      save: jest.fn().mockResolvedValue(true),
+    });
+
+    const res = await request(app).put('/api/users/v2').send({ status: 'active' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('active');
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+  });
+
+  test('deleting a user releases their open assignments', async () => {
+    User.findById.mockResolvedValue({ id: 'v3' });
+    User.findByIdAndDelete.mockResolvedValue({ id: 'v3' });
+
+    const res = await request(app).delete('/api/users/v3');
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateMany).toHaveBeenCalledWith(...releaseCall('v3'));
   });
 });

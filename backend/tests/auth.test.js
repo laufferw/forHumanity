@@ -34,7 +34,7 @@ describe('auth middleware', () => {
 
     const { req, next } = await run(auth, token);
     expect(next).toHaveBeenCalled();
-    expect(req.user).toEqual({ id: 'u1', role: 'volunteer' });
+    expect(req.user).toEqual({ id: 'u1', role: 'volunteer', status: 'active' });
   });
 
   test('rejects tokens for suspended or deleted users', async () => {
@@ -45,6 +45,15 @@ describe('auth middleware', () => {
 
     mockFindById.mockReturnValue(dbUser(null));
     expect((await run(auth, token)).res.status).toHaveBeenCalledWith(401);
+  });
+
+  test('lets pending users sign in with their pending status', async () => {
+    mockFindById.mockReturnValue(dbUser({ id: 'u1', role: 'volunteer', status: 'pending' }));
+    const token = jwt.sign({ id: 'u1' }, 'test-secret');
+
+    const { req, next } = await run(auth, token);
+    expect(next).toHaveBeenCalled();
+    expect(req.user.status).toBe('pending');
   });
 
   test('optional auth lets anonymous and invalid-token requests through without a user', async () => {

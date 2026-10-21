@@ -8,9 +8,14 @@ forHumanity is a community support app for submitting and tracking blanket deliv
    notes, and optionally their current GPS location. No account needed.
 2. **Admins** see every request on `/admin`, filter by status, and assign each one to a volunteer.
    The Users tab manages roles and account status (suspending someone logs them out immediately).
-3. **Volunteers** (anyone who registers) see their deliveries on `/assignments`, with tap-to-call
-   phone numbers and map links, and mark each one started and delivered.
-4. Logged-in users can track and cancel requests they submitted on `/my-requests`.
+3. **Volunteers** register on `/login`. New accounts are **pending** until an admin approves them
+   on the Users tab; pending volunteers can track their own requests but can't be assigned
+   deliveries. Approved volunteers see their deliveries on `/assignments`, with tap-to-call phone
+   numbers and map links, and mark each one started and delivered.
+4. Admins and volunteers can **sort requests by distance** from their current location (requests
+   with GPS coordinates first). Suspending or deleting a volunteer puts their open deliveries back
+   in the queue.
+5. Logged-in users can track and cancel requests they submitted on `/my-requests`.
 
 ## Monorepo layout
 
@@ -75,7 +80,9 @@ optionally `ADMIN_NAME`.
 
 Backend now includes:
 - `helmet` security headers
-- API rate limiting (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`)
+- API rate limiting (`RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`), plus a tighter per-IP limit on
+  public request submissions (`REQUEST_RATE_LIMIT_WINDOW_MS`, `REQUEST_RATE_LIMIT_MAX`, default
+  10/hour) and a honeypot field on the request form
 - `TRUST_PROXY` is the number of reverse proxies in front of the backend (never "trust all"),
   so clients can't spoof their IP to dodge rate limits
 - login lockout controls (`MAX_FAILED_LOGIN_ATTEMPTS`, `LOGIN_LOCKOUT_MINUTES`, `FAILED_ATTEMPT_TTL_MINUTES`)

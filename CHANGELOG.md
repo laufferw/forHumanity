@@ -21,12 +21,20 @@ All notable changes to forHumanity will be documented in this file.
   data-sharing notice
 - My requests: status, dates, and cancelling open requests
 - `GET /api/requests/assigned` and `?status=` filtering on `GET /api/requests`
+- Volunteer approval: new registrations are `pending` until an admin approves them (Approve
+  button and "Awaiting approval" count on the admin dashboard). Pending users can sign in and
+  track their own requests but can't be assigned deliveries
+- "Sort by distance from me" on the admin request list and volunteer assignments
+- Per-IP limit on public request submissions (default 10/hour) and a honeypot field
 
 ### Changed
 - Frontend validates the stored session on load and logs out when the token is rejected
 - `/api/health` returns 503 when the database is down; production exits if MongoDB is unreachable
   at startup
 - `TRUST_PROXY` is a hop count; `true` is treated as one hop instead of trusting every proxy
+- Admin access requires an active account, not just the admin role
+- Suspending, deactivating, or deleting a volunteer returns their open assignments to the
+  unassigned pending queue; delivered and cancelled requests keep their history
 
 ### Fixed
 - Submitting a request without coordinates failed with a geo-index error

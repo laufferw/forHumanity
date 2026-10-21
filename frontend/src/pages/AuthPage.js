@@ -5,8 +5,17 @@ import { useAuth } from '../context/AuthContext';
 const PASSWORD_HINT =
   'At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a symbol.';
 
+// Where to land after signing in: pending volunteers can't take deliveries
+// yet, so they go to their own requests.
+const homeFor = (user, role) => {
+  if (role === 'admin') return '/admin';
+  if (user?.status === 'pending') return '/my-requests';
+  return '/assignments';
+};
+
 export default function AuthPage() {
-  const { login, register, loading, error, clearError, isAuthenticated, getUserRole } = useAuth();
+  const { user, login, register, loading, error, clearError, isAuthenticated, getUserRole } =
+    useAuth();
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });
 
@@ -16,7 +25,7 @@ export default function AuthPage() {
   }, [mode]);
 
   if (isAuthenticated()) {
-    return <Navigate to={getUserRole() === 'admin' ? '/admin' : '/assignments'} replace />;
+    return <Navigate to={homeFor(user, getUserRole())} replace />;
   }
 
   const onSubmit = async (e) => {
@@ -81,7 +90,12 @@ export default function AuthPage() {
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
         </label>
-        {mode === 'register' && <p className="muted">{PASSWORD_HINT}</p>}
+        {mode === 'register' && (
+          <p className="muted">
+            {PASSWORD_HINT} New volunteer accounts are reviewed by an admin before you can take
+            deliveries.
+          </p>
+        )}
         <button type="submit" disabled={loading}>
           {loading ? 'Working...' : mode === 'login' ? 'Log in' : 'Create account'}
         </button>

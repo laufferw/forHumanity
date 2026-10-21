@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import PendingNotice from '../components/PendingNotice';
 import RequestSummary from '../components/RequestSummary';
+import { useAuth } from '../context/AuthContext';
 import { isOpen } from '../lib/requests';
 import useLoader from '../lib/useLoader';
 import { requestService } from '../services/api';
@@ -14,6 +16,7 @@ export default function MyRequestsPage() {
     setError,
   } = useLoader(() => requestService.getUserRequests(), []);
   const [savingId, setSavingId] = useState('');
+  const { user } = useAuth();
 
   const cancel = async (id) => {
     if (!window.confirm('Cancel this request?')) return;
@@ -32,6 +35,7 @@ export default function MyRequestsPage() {
   return (
     <section className="card">
       <h2>My requests</h2>
+      {user?.status === 'pending' && <PendingNotice />}
       {loading && <p>Loading...</p>}
       {error && <p className="error">{error}</p>}
       {!loading && !error && requests.length === 0 && (

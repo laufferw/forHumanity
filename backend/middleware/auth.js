@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { canSignIn } = require('../utils/accounts');
 require('dotenv').config();
 
 /**
  * Resolves the user for a token, or null when the token is invalid or the
- * account no longer exists / is not active. Role comes from the database so
- * demotions and suspensions take effect immediately, not at token expiry.
+ * account no longer exists / may not sign in. Role and status come from the
+ * database so demotions and suspensions take effect immediately, not at
+ * token expiry.
  */
 const resolveUser = async (token) => {
   let decoded;
@@ -17,8 +19,8 @@ const resolveUser = async (token) => {
 
   try {
     const user = await User.findById(decoded.id).select('role status');
-    if (!user || user.status !== 'active') return null;
-    return { id: String(user.id), role: user.role };
+    if (!user || !canSignIn(user.status)) return null;
+    return { id: String(user.id), role: user.role, status: user.status };
   } catch {
     return null;
   }

@@ -5,6 +5,7 @@ jest.mock('../middleware/auth', () => {
     req.user = {
       id: req.header('x-test-user-id') || 'user-1',
       role: req.header('x-test-role') || 'volunteer',
+      status: req.header('x-test-status') || 'active',
     };
     next();
   };
@@ -13,6 +14,7 @@ jest.mock('../middleware/auth', () => {
       req.user = {
         id: req.header('x-test-user-id'),
         role: req.header('x-test-role') || 'volunteer',
+        status: req.header('x-test-status') || 'active',
       };
     }
     next();
@@ -221,5 +223,46 @@ describe('requests routes', () => {
       .send({ assignedTo: assigneeId });
     expect(active.status).toBe(200);
     expect(active.body.assignedTo).toBe(assigneeId);
+  });
+
+  test('honeypot submissions look accepted but are not saved', async () => {
+    const res = await request(app)
+      .post('/api/requests')
+      .send({ name: 'Bot', phone: '1', address: 'x', website: 'http://spam.example' });
+
+    expect(res.status).toBe(201);
+    // A saved request would come back with an _id from the mock model.
+    expect(res.body._id).toBeUndefined();
+  });
+
+  test('pending admins cannot use admin-only request access', async () => {
+    Request.findById.mockResolvedValue({ ...mockRequestDoc, userId: 'someone-else' });
+
+    const res = await request(app)
+      .get('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .set('x-test-status', 'pending');
+    expect(res.status).toBe(404);
+  });
+
+  test('volunteers moved back to pending lose access to their retained assignments', async () => {
+    const pendingVolunteer = (req) =>
+      req.set('x-test-user-id', 'vol-1').set('x-test-status', 'pending');
+
+    const list = await pendingVolunteer(request(app).get('/api/requests/assigned'));
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([]);
+    expect(Request.find).not.toHaveBeenCalled();
+
+    const completed = { ...mockRequestDoc, status: 'completed', assignedTo: 'vol-1' };
+    Request.findById.mockResolvedValue({ ...completed, save: jest.fn() });
+    const read = await pendingVolunteer(request(app).get('/api/requests/req-1'));
+    expect(read.status).toBe(404);
+
+    Request.findById.mockResolvedValue({ ...completed, save: jest.fn() });
+    const reopen = await pendingVolunteer(
+      request(app).put('/api/requests/req-1/status').send({ status: 'in-progress' })
+    );
+    expect(reopen.status).toBe(403);
   });
 });
