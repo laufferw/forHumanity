@@ -25,7 +25,9 @@ const redactClosedRequests = async ({ days = retentionDays(), now = new Date() }
       redactedAt: { $exists: false },
       $or: [
         { status: 'completed', completedAt: { $lt: cutoff } },
-        { status: 'cancelled', updatedAt: { $lt: cutoff } },
+        { status: 'cancelled', cancelledAt: { $lt: cutoff } },
+        // Cancelled before cancelledAt existed: fall back to the last update.
+        { status: 'cancelled', cancelledAt: { $exists: false }, updatedAt: { $lt: cutoff } },
       ],
     },
     {

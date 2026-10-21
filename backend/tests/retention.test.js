@@ -20,7 +20,8 @@ test('redacts personal details of requests closed before the cutoff', async () =
     redactedAt: { $exists: false },
     $or: [
       { status: 'completed', completedAt: { $lt: cutoff } },
-      { status: 'cancelled', updatedAt: { $lt: cutoff } },
+      { status: 'cancelled', cancelledAt: { $lt: cutoff } },
+      { status: 'cancelled', cancelledAt: { $exists: false }, updatedAt: { $lt: cutoff } },
     ],
   });
   expect(update.$set).toMatchObject({

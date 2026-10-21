@@ -315,4 +315,31 @@ describe('requests routes', () => {
       .send({ status: 'completed' });
     expect(mockNotifications.requestDelivered).toHaveBeenCalledTimes(1);
   });
+
+  test('does not email the requester again when a delivered request is reopened and re-completed', async () => {
+    const doc = { ...mockRequestDoc, status: 'pending', save: jest.fn() };
+    Request.findById.mockResolvedValue(doc);
+    const setStatus = (status) =>
+      request(app).put('/api/requests/req-1/status').set('x-test-role', 'admin').send({ status });
+
+    await setStatus('completed');
+    await setStatus('in-progress');
+    await setStatus('completed');
+
+    expect(doc.deliveryNotifiedAt).toBeInstanceOf(Date);
+    expect(mockNotifications.requestDelivered).toHaveBeenCalledTimes(1);
+  });
+
+  test('records when a request was cancelled and clears it on reopen', async () => {
+    const doc = { ...mockRequestDoc, status: 'pending', save: jest.fn() };
+    Request.findById.mockResolvedValue(doc);
+    const setStatus = (status) =>
+      request(app).put('/api/requests/req-1/status').set('x-test-role', 'admin').send({ status });
+
+    await setStatus('cancelled');
+    expect(doc.cancelledAt).toBeInstanceOf(Date);
+
+    await setStatus('pending');
+    expect(doc.cancelledAt).toBeUndefined();
+  });
 });

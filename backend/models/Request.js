@@ -86,6 +86,16 @@ const RequestSchema = new Schema(
       type: Date,
     },
 
+    cancelledAt: {
+      type: Date,
+    },
+
+    // Set the first time the requester is told their blanket was delivered,
+    // so reopening and re-completing a request doesn't email them again.
+    deliveryNotifiedAt: {
+      type: Date,
+    },
+
     // Set when the retention policy removed the requester's personal details.
     redactedAt: {
       type: Date,
