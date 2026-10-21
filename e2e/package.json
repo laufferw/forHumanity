@@ -1,0 +1,15 @@
+{
+  "name": "forhumanity-e2e",
+  "private": true,
+  "description": "Browser end-to-end tests: real backend, MongoDB, and the built frontend",
+  "scripts": {
+    "test": "playwright test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "prettier": "^3.5.1",
+    "serve": "14.2.6"
+  }
+}
