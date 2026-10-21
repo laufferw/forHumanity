@@ -1,9 +1,13 @@
-jest.mock('../middleware/auth', () => (req, res, next) => {
-  req.user = {
-    id: 'admin-1',
-    role: req.header('x-test-role') || 'volunteer',
+jest.mock('../middleware/auth', () => {
+  const auth = (req, res, next) => {
+    req.user = {
+      id: 'admin-1',
+      role: req.header('x-test-role') || 'volunteer',
+    };
+    next();
   };
-  next();
+  auth.optional = (req, res, next) => next();
+  return auth;
 });
 
 const mockUserModel = {
@@ -34,6 +38,7 @@ describe('admin routes', () => {
     mockUserModel.countDocuments.mockResolvedValueOnce(10);
     mockRequestModel.countDocuments.mockResolvedValueOnce(25);
     mockRequestModel.countDocuments.mockResolvedValueOnce(6);
+    mockRequestModel.countDocuments.mockResolvedValueOnce(7);
     mockRequestModel.countDocuments.mockResolvedValueOnce(12);
 
     const res = await request(app).get('/api/admin/dashboard').set('x-test-role', 'admin');
@@ -42,6 +47,7 @@ describe('admin routes', () => {
     expect(res.body.users).toBe(10);
     expect(res.body.requests.total).toBe(25);
     expect(res.body.requests.pending).toBe(6);
+    expect(res.body.requests.inProgress).toBe(7);
     expect(res.body.requests.completed).toBe(12);
   });
 });

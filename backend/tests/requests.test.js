@@ -1,11 +1,23 @@
 process.env.JWT_SECRET = 'test-secret';
 
-jest.mock('../middleware/auth', () => (req, res, next) => {
-  req.user = {
-    id: req.header('x-test-user-id') || 'user-1',
-    role: req.header('x-test-role') || 'volunteer',
+jest.mock('../middleware/auth', () => {
+  const auth = (req, res, next) => {
+    req.user = {
+      id: req.header('x-test-user-id') || 'user-1',
+      role: req.header('x-test-role') || 'volunteer',
+    };
+    next();
   };
-  next();
+  auth.optional = (req, res, next) => {
+    if (req.header('x-test-user-id')) {
+      req.user = {
+        id: req.header('x-test-user-id'),
+        role: req.header('x-test-role') || 'volunteer',
+      };
+    }
+    next();
+  };
+  return auth;
 });
 
 const mockRequestDoc = {
@@ -35,6 +47,9 @@ MockRequest.findById = Request.findById;
 MockRequest.findByIdAndDelete = Request.findByIdAndDelete;
 
 jest.mock('../models/Request', () => MockRequest);
+
+const mockUserFindById = jest.fn();
+jest.mock('../models/User', () => ({ findById: (...args) => mockUserFindById(...args) }));
 
 const request = require('supertest');
 const { app } = require('../server');
@@ -103,5 +118,108 @@ describe('requests routes', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('completed');
     expect(new Date(res.body.completedAt).toISOString()).toBe(originalCompletedAt.toISOString());
+  });
+
+  test('ignores userId in body and links request to the caller', async () => {
+    const anon = await request(app).post('/api/requests').send({
+      name: 'A',
+      phone: '555',
+      address: '1 St',
+      userId: 'victim-user',
+    });
+    expect(anon.status).toBe(201);
+    expect(anon.body.userId).toBeUndefined();
+
+    const authed = await request(app)
+      .post('/api/requests')
+      .set('x-test-user-id', 'user-7')
+      .send({ name: 'A', phone: '555', address: '1 St', userId: 'victim-user' });
+    expect(authed.status).toBe(201);
+    expect(authed.body.userId).toBe('user-7');
+  });
+
+  test('hides a request from users who are not owner, assignee, or admin', async () => {
+    Request.findById.mockResolvedValue({ ...mockRequestDoc, userId: 'owner-1' });
+
+    const stranger = await request(app).get('/api/requests/req-1').set('x-test-user-id', 'other');
+    expect(stranger.status).toBe(404);
+
+    const owner = await request(app).get('/api/requests/req-1').set('x-test-user-id', 'owner-1');
+    expect(owner.status).toBe(200);
+
+    const admin = await request(app)
+      .get('/api/requests/req-1')
+      .set('x-test-user-id', 'other')
+      .set('x-test-role', 'admin');
+    expect(admin.status).toBe(200);
+  });
+
+  test('only admins and the assignee can change status; owner may only cancel', async () => {
+    const doc = () => ({
+      ...mockRequestDoc,
+      userId: 'owner-1',
+      assignedTo: 'vol-1',
+      save: jest.fn().mockResolvedValue(true),
+    });
+    const put = (userId, status) => {
+      Request.findById.mockResolvedValue(doc());
+      return request(app)
+        .put('/api/requests/req-1/status')
+        .set('x-test-user-id', userId)
+        .send({ status });
+    };
+
+    expect((await put('other', 'completed')).status).toBe(403);
+    expect((await put('owner-1', 'completed')).status).toBe(403);
+    expect((await put('owner-1', 'cancelled')).status).toBe(200);
+    expect((await put('vol-1', 'completed')).status).toBe(200);
+  });
+
+  test('lists requests assigned to the current user', async () => {
+    const sort = jest.fn().mockResolvedValue([mockRequestDoc]);
+    Request.find.mockReturnValue({ sort });
+
+    const res = await request(app).get('/api/requests/assigned').set('x-test-user-id', 'vol-1');
+
+    expect(res.status).toBe(200);
+    expect(Request.find).toHaveBeenCalledWith({ assignedTo: 'vol-1' });
+  });
+
+  test('filters the admin list by status and rejects unknown statuses', async () => {
+    Request.find.mockReturnValue({ sort: jest.fn().mockResolvedValue([]) });
+
+    const ok = await request(app).get('/api/requests?status=pending').set('x-test-role', 'admin');
+    expect(ok.status).toBe(200);
+    expect(Request.find).toHaveBeenCalledWith({ status: 'pending' });
+
+    const bad = await request(app).get('/api/requests?status=bogus').set('x-test-role', 'admin');
+    expect(bad.status).toBe(400);
+  });
+
+  test('only assigns requests to active users', async () => {
+    const assigneeId = '507f1f77bcf86cd799439011';
+    const select = (value) => ({ select: jest.fn().mockResolvedValue(value) });
+    Request.findById.mockResolvedValue({ ...mockRequestDoc, save: jest.fn() });
+
+    mockUserFindById.mockReturnValue(select({ role: 'volunteer', status: 'suspended' }));
+    const suspended = await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: assigneeId });
+    expect(suspended.status).toBe(400);
+
+    const malformed = await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: 'not-an-id' });
+    expect(malformed.status).toBe(400);
+
+    mockUserFindById.mockReturnValue(select({ role: 'volunteer', status: 'active' }));
+    const active = await request(app)
+      .put('/api/requests/req-1')
+      .set('x-test-role', 'admin')
+      .send({ assignedTo: assigneeId });
+    expect(active.status).toBe(200);
+    expect(active.body.assignedTo).toBe(assigneeId);
   });
 });

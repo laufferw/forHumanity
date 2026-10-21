@@ -36,7 +36,17 @@ function validateRuntimeConfig() {
   }
 }
 
-app.set('trust proxy', process.env.TRUST_PROXY === 'true');
+// TRUST_PROXY is the number of reverse proxies in front of the app (the
+// bundled nginx counts as one). Trusting every hop ('true' in Express) would
+// let clients spoof X-Forwarded-For and dodge rate limiting, so a legacy
+// 'true' value is treated as a single hop.
+function parseTrustProxy(value) {
+  if (value === 'true') return 1;
+  const hops = Number(value);
+  return Number.isInteger(hops) && hops > 0 ? hops : false;
+}
+
+app.set('trust proxy', parseTrustProxy(process.env.TRUST_PROXY));
 app.disable('x-powered-by');
 
 app.use(
@@ -72,7 +82,10 @@ app.use((req, res, next) => {
     metrics.requestsTotal += 1;
     incrementMetric(metrics.requestsByStatus, String(res.statusCode));
     incrementMetric(metrics.requestsByMethod, req.method);
-    incrementMetric(metrics.requestsByRoute, req.path);
+    // Key by the matched route pattern (e.g. /api/requests/:id), not the raw
+    // path, so unmatched or ID-bearing URLs can't grow this map without bound.
+    const routeKey = req.route ? `${req.baseUrl}${req.route.path}` : 'unmatched';
+    incrementMetric(metrics.requestsByRoute, routeKey);
 
     if (res.statusCode >= 500) {
       metrics.errorsTotal += 1;
@@ -86,7 +99,7 @@ app.use((req, res, next) => {
         type: 'request',
         requestId,
         method: req.method,
-        path: req.path,
+        path: req.originalUrl.split('?')[0],
         statusCode: res.statusCode,
         durationMs,
       })
@@ -108,20 +121,44 @@ async function connectDb() {
     console.log('Connected to MongoDB successfully');
   } catch (err) {
     console.error('MongoDB connection error:', err);
+    // In production, exit so the container restarts instead of serving
+    // requests that will all fail.
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
     console.log('Continuing without MongoDB connection');
   }
 }
 
 app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
+  const dbConnected = mongoose.connection.readyState === 1;
+  res.status(dbConnected ? 200 : 503).json({
+    status: dbConnected ? 'ok' : 'degraded',
     service: 'forHumanity-backend',
-    db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    db: dbConnected ? 'connected' : 'disconnected',
     uptime: process.uptime(),
   });
 });
 
-app.get('/api/metrics', (req, res) => {
+// When METRICS_TOKEN is set, callers must send it in x-metrics-token.
+// Without it, metrics stay open in development but are disabled in production.
+const metricsAuth = (req, res, next) => {
+  const expected = process.env.METRICS_TOKEN;
+  if (expected) {
+    const provided = Buffer.from(String(req.header('x-metrics-token') || ''));
+    const wanted = Buffer.from(expected);
+    if (provided.length === wanted.length && crypto.timingSafeEqual(provided, wanted)) {
+      return next();
+    }
+    return res.status(401).json({ message: 'Metrics token required', requestId: req.requestId });
+  }
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ message: 'Route not found', requestId: req.requestId });
+  }
+  return next();
+};
+
+app.get('/api/metrics', metricsAuth, (req, res) => {
   res.json({
     status: 'ok',
     service: 'forHumanity-backend',
@@ -195,4 +232,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, connectDb, validateRuntimeConfig };
+module.exports = { app, connectDb, validateRuntimeConfig, parseTrustProxy };

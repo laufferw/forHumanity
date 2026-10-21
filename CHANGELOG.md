@@ -2,6 +2,38 @@
 
 All notable changes to forHumanity will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- `GET /api/requests/:id` is limited to admins, the requester, and the assigned volunteer
+- `PUT /api/requests/:id/status` is limited to admins and the assigned volunteer; requesters may only cancel
+- `POST /api/requests` takes `userId` from the auth token instead of the request body
+- Auth middleware loads role and status from the database, so demoted or suspended users lose access immediately
+- Login no longer reveals account status before the password is verified
+- `/api/metrics` requires `METRICS_TOKEN` (disabled in production when unset); route metrics use route patterns
+- Upgrade bcrypt to v6 and override qs to clear production `npm audit` findings
+
+### Added
+- Volunteer Assignments page: start and complete deliveries, tap-to-call, map links
+- Admin dashboard: status filter, full request list with assign/status/delete, and a Users tab
+  for roles, account status, and removal
+- Request form: optional current-location capture, prefill for logged-in users, and a required
+  data-sharing notice
+- My requests: status, dates, and cancelling open requests
+- `GET /api/requests/assigned` and `?status=` filtering on `GET /api/requests`
+
+### Changed
+- Frontend validates the stored session on load and logs out when the token is rejected
+- `/api/health` returns 503 when the database is down; production exits if MongoDB is unreachable
+  at startup
+- `TRUST_PROXY` is a hop count; `true` is treated as one hop instead of trusting every proxy
+
+### Fixed
+- Submitting a request without coordinates failed with a geo-index error
+- Validation errors returned 500 instead of 400 with the reason
+- Emails with TLDs longer than three letters (e.g. `.info`) were rejected
+- Production compose: add the Mongo healthcheck the backend depends on
+
 ## [0.17.0] - 2026-02-14
 
 ### Added

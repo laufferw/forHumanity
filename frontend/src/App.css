@@ -19,20 +19,29 @@
   background: #ffffff;
 }
 
-.topbar h1 {
-  margin: 0;
+.brand {
   font-size: 1.2rem;
+  font-weight: 700;
+  color: #1e2430;
+  text-decoration: none;
 }
 
 .topbar nav {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 14px;
 }
 
-.topbar a {
+.topbar nav a {
   text-decoration: none;
   color: #1f5eff;
   font-weight: 600;
+  padding-bottom: 2px;
+  border-bottom: 2px solid transparent;
+}
+
+.topbar nav a.active {
+  border-bottom-color: #1f5eff;
 }
 
 .content {
@@ -48,10 +57,19 @@
   padding: 20px;
 }
 
+.card.narrow {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .row {
@@ -59,29 +77,104 @@
   align-items: center;
 }
 
+.row.gap {
+  gap: 10px;
+}
+
+.wrap {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .between {
   justify-content: space-between;
 }
 
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+label.checkbox {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  font-weight: 400;
+}
+
+label.checkbox input {
+  margin-top: 4px;
+}
+
 input,
 textarea,
-button {
+select,
+button,
+.button {
   font: inherit;
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid #ccd4e2;
 }
 
-button {
+input,
+textarea,
+select {
+  background: #fff;
+  font-weight: 400;
+}
+
+label.checkbox input {
+  padding: 0;
+}
+
+select {
+  padding: 6px 8px;
+}
+
+button,
+.button {
+  display: inline-block;
   background: #1f5eff;
   color: #fff;
   border: none;
   cursor: pointer;
+  text-decoration: none;
+  font-weight: 600;
 }
 
-button.secondary {
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+button.secondary,
+.button.secondary {
   background: #edf1ff;
   color: #24408a;
+}
+
+button.danger {
+  background: #fdecee;
+  color: #a1001b;
+}
+
+button.link {
+  background: none;
+  color: #1f5eff;
+  padding: 0;
+  text-decoration: underline;
+  font-weight: 400;
 }
 
 .error {
@@ -92,31 +185,107 @@ button.secondary {
   color: #05603a;
 }
 
-.list {
-  padding-left: 18px;
-}
-
-.request-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-}
-
-.request-controls {
-  display: flex;
-  gap: 8px;
-}
-
 .muted {
   color: #6c7485;
   font-size: 0.9rem;
+  margin: 4px 0;
+}
+
+.notes {
+  white-space: pre-wrap;
+  margin: 6px 0;
+}
+
+.small-link {
+  font-size: 0.9rem;
+}
+
+.steps {
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.cards {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.request-card {
+  border: 1px solid #e6eaf2;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.request-summary p {
+  margin: 4px 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: #eef0f4;
+  color: #3b4352;
+  text-transform: capitalize;
+}
+
+.badge-pending {
+  background: #fff4dc;
+  color: #7a4b00;
+}
+
+.badge-in-progress {
+  background: #e3ecff;
+  color: #1d47b8;
+}
+
+.badge-completed,
+.badge-user-active {
+  background: #dff6e9;
+  color: #05603a;
+}
+
+.badge-cancelled,
+.badge-user-suspended {
+  background: #fdecee;
+  color: #a1001b;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #e6eaf2;
+  margin-bottom: 12px;
+}
+
+.tab {
+  background: none;
+  color: #4a5363;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+}
+
+.tab.active {
+  color: #1f5eff;
+  border-bottom-color: #1f5eff;
+}
+
+.toolbar {
+  margin-bottom: 8px;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 10px;
   margin: 12px 0 18px;
 }
@@ -136,4 +305,18 @@ button.secondary {
 .stat-card p {
   margin: 4px 0 0;
   color: #5a6475;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    padding: 12px 16px;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .card {
+    padding: 16px;
+  }
 }

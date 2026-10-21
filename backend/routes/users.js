@@ -5,6 +5,12 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 const auth = require('../middleware/auth');
+const { sendError } = require('../utils/http');
+const { isStrongPassword, PASSWORD_POLICY_MESSAGE } = require('../utils/password');
+
+const VALID_ROLES = ['volunteer', 'admin'];
+const VALID_STATUSES = ['active', 'inactive', 'pending', 'suspended'];
+const NOT_FOUND = { notFoundMessage: 'User not found' };
 
 const parsePositiveInt = (value, fallback) => {
   const parsed = Number(value);
@@ -29,18 +35,6 @@ const normalizeEmail = (email) =>
   String(email || '')
     .trim()
     .toLowerCase();
-
-const isStrongPassword = (password) => {
-  if (!password || password.length < 8) return false;
-  const hasUpper = /[A-Z]/.test(password);
-  const hasLower = /[a-z]/.test(password);
-  const hasNumber = /\d/.test(password);
-  const hasSpecial = /[^A-Za-z0-9]/.test(password);
-  return hasUpper && hasLower && hasNumber && hasSpecial;
-};
-
-const getPasswordPolicyMessage = () =>
-  'Password must be at least 8 characters and include uppercase, lowercase, number, and special character.';
 
 const issueToken = (user) =>
   jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, {
@@ -114,7 +108,7 @@ router.post('/register', async (req, res) => {
     }
 
     if (!isStrongPassword(password)) {
-      return res.status(400).json({ message: getPasswordPolicyMessage() });
+      return res.status(400).json({ message: PASSWORD_POLICY_MESSAGE });
     }
 
     const normalizedEmail = normalizeEmail(email);
@@ -144,8 +138,7 @@ router.post('/register', async (req, res) => {
       user: serializeUser(user),
     });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -172,12 +165,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    if (user.status !== 'active') {
-      return res
-        .status(400)
-        .json({ message: 'Account is not active. Please contact administrator.' });
-    }
-
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       const state = registerFailedAttempt(normalizedEmail);
@@ -190,6 +177,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Checked only after the password matches, so account status can't be
+    // used to discover which emails are registered.
+    if (user.status !== 'active') {
+      return res
+        .status(400)
+        .json({ message: 'Account is not active. Please contact administrator.' });
+    }
+
     clearFailedAttempts(normalizedEmail);
     const token = issueToken(user);
 
@@ -198,8 +193,7 @@ router.post('/login', async (req, res) => {
       user: serializeUser(user),
     });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -213,8 +207,7 @@ router.post('/session/refresh', auth, async (req, res) => {
     const token = issueToken(user);
     return res.json({ token, user: serializeUser(user) });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -226,8 +219,7 @@ router.get('/profile', auth, async (req, res) => {
     }
     return res.json(serializeUser(user));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -258,7 +250,7 @@ router.put('/profile', auth, async (req, res) => {
 
     if (currentPassword && newPassword) {
       if (!isStrongPassword(newPassword)) {
-        return res.status(400).json({ message: getPasswordPolicyMessage() });
+        return res.status(400).json({ message: PASSWORD_POLICY_MESSAGE });
       }
 
       const isMatch = await bcrypt.compare(currentPassword, user.password);
@@ -274,8 +266,7 @@ router.put('/profile', auth, async (req, res) => {
       user: serializeUser(user),
     });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -284,8 +275,7 @@ router.get('/', auth, adminAuth, async (req, res) => {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
     return res.json(users.map(serializeUser));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
@@ -296,14 +286,27 @@ router.get('/volunteers', auth, adminAuth, async (req, res) => {
       .sort({ createdAt: -1 });
     return res.json(volunteers.map(serializeUser));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
 router.put('/:id', auth, adminAuth, async (req, res) => {
   try {
     const { name, email, phone, role, status } = req.body;
+
+    if (role && !VALID_ROLES.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+    if (status && !VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' });
+    }
+
+    const isSelf = req.params.id === req.user.id;
+    if (isSelf && ((role && role !== 'admin') || (status && status !== 'active'))) {
+      return res
+        .status(400)
+        .json({ message: 'You cannot remove your own admin access or deactivate yourself' });
+    }
 
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -332,13 +335,16 @@ router.put('/:id', auth, adminAuth, async (req, res) => {
 
     return res.json(serializeUser(user));
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 
 router.delete('/:id', auth, adminAuth, async (req, res) => {
   try {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ message: 'You cannot delete your own account' });
+    }
+
     const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -347,8 +353,7 @@ router.delete('/:id', auth, adminAuth, async (req, res) => {
     await User.findByIdAndDelete(req.params.id);
     return res.json({ message: 'User removed successfully' });
   } catch (err) {
-    console.error(err.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, err, NOT_FOUND);
   }
 });
 

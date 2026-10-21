@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authService } from '../services/api';
+import { authService, AUTH_EXPIRED_EVENT } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -12,22 +12,37 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => authService.getCurrentUser());
+  // True until a stored session has been checked with the server.
+  const [initializing, setInitializing] = useState(() => authService.isAuthenticated());
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    try {
-      const currentUser = authService.getCurrentUser();
-      if (currentUser) {
-        setUser(currentUser);
-      }
-    } catch (err) {
-      console.error('Error loading user:', err);
-      setError('Failed to load user data');
-    } finally {
-      setLoading(false);
+    let cancelled = false;
+
+    if (authService.isAuthenticated()) {
+      authService
+        .refreshSession()
+        .then((response) => {
+          if (!cancelled) setUser(response.user);
+        })
+        .catch(() => {
+          // A 401 clears the session via AUTH_EXPIRED_EVENT; on network errors
+          // keep the cached user so the app still works offline-ish.
+          if (!cancelled && !authService.isAuthenticated()) setUser(null);
+        })
+        .finally(() => {
+          if (!cancelled) setInitializing(false);
+        });
     }
+
+    const onExpired = () => setUser(null);
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    };
   }, []);
 
   const register = async (userData) => {
@@ -86,6 +101,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    initializing,
     loading,
     error,
     register,

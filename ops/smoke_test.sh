@@ -14,7 +14,8 @@ fi
 
 echo "✅ /api/health ok"
 
-metrics_status=$(curl -sS -o /tmp/fh_metrics.json -w "%{http_code}" "$API_BASE/metrics")
+metrics_status=$(curl -sS -o /tmp/fh_metrics.json -w "%{http_code}" \
+  -H "x-metrics-token: ${METRICS_TOKEN:-}" "$API_BASE/metrics")
 if [[ "$metrics_status" != "200" ]]; then
   echo "❌ /api/metrics failed with status $metrics_status"
   exit 1
