@@ -244,4 +244,25 @@ describe('requests routes', () => {
       .set('x-test-status', 'pending');
     expect(res.status).toBe(404);
   });
+
+  test('volunteers moved back to pending lose access to their retained assignments', async () => {
+    const pendingVolunteer = (req) =>
+      req.set('x-test-user-id', 'vol-1').set('x-test-status', 'pending');
+
+    const list = await pendingVolunteer(request(app).get('/api/requests/assigned'));
+    expect(list.status).toBe(200);
+    expect(list.body).toEqual([]);
+    expect(Request.find).not.toHaveBeenCalled();
+
+    const completed = { ...mockRequestDoc, status: 'completed', assignedTo: 'vol-1' };
+    Request.findById.mockResolvedValue({ ...completed, save: jest.fn() });
+    const read = await pendingVolunteer(request(app).get('/api/requests/req-1'));
+    expect(read.status).toBe(404);
+
+    Request.findById.mockResolvedValue({ ...completed, save: jest.fn() });
+    const reopen = await pendingVolunteer(
+      request(app).put('/api/requests/req-1/status').send({ status: 'in-progress' })
+    );
+    expect(reopen.status).toBe(403);
+  });
 });

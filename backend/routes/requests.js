@@ -48,7 +48,11 @@ const sameId = (a, b) => Boolean(a) && Boolean(b) && String(a) === String(b);
 
 const isAdmin = (user) => user.role === 'admin' && user.status === 'active';
 const isOwner = (request, user) => sameId(request.userId, user.id);
-const isAssignee = (request, user) => sameId(request.assignedTo, user.id);
+// Only active volunteers act as assignees. A volunteer moved back to pending
+// keeps their delivered/cancelled history attached, but must not regain access
+// to it (or reopen it) until approved again.
+const isAssignee = (request, user) =>
+  user.status === 'active' && sameId(request.assignedTo, user.id);
 
 const applyCompletionTimestampTransition = (request, nextStatus) => {
   const previousStatus = request.status;
@@ -104,6 +108,10 @@ router.get('/user', auth, async (req, res) => {
  */
 router.get('/assigned', auth, async (req, res) => {
   try {
+    if (req.user.status !== 'active') {
+      return res.json([]);
+    }
+
     const requests = await Request.find({ assignedTo: req.user.id }).sort({ createdAt: -1 });
     return res.json(requests);
   } catch (err) {
